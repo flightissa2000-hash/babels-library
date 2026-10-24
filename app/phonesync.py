@@ -39,7 +39,7 @@ PHONE_FIELDS = ("id", "kind", "title", "authors", "year", "publisher", "journal"
                 "genre", "subject", "fiction", "topic", "tags", "summary", "series", "series_index", "season", "episode",
                 "album", "album_artist", "track", "disc", "duration", "file_type", "format", "direction", "physical",
                 "progress", "last_location", "favorite", "wanted", "watched", "watched_at", "opened_at", "added_at",
-                "has_file", "has_cover", "cover_v", "collections", "ann_count", "audio_pos", "updated_at", "expires_at")
+                "has_file", "has_cover", "cover_v", "collections", "ann_count", "audio_pos", "updated_at", "expires_at", "audio_status")
 BIN = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "BabelsLibrary", "bin")
 
 _codes = {}          # pairing code -> expiry
@@ -274,10 +274,39 @@ def push_journal(jops, skew):
     return made
 
 
-def push(dev, ops, phone_now, jops=None):
+def push_anns(aops):
+    """Highlights, notes, pins and bookmarks made in the phone's reader (in the order they were made; ones made
+    offline carry the phone's own id, "c:...", until they're saved here). Returns {phone id: id here}."""
+    made = {}
+    for op in aops or []:
+        try:
+            kind = op.get("op")
+            if kind == "add":
+                it = store.get_item(int(op["item_id"]))
+                if not it:
+                    continue
+                a = store.create_annotation(it["id"], {k: op.get(k) for k in ("title", "note", "quote", "color", "locator") if op.get(k) is not None})
+                made[str(op.get("cid"))] = a["id"]
+                continue
+            aid = op.get("id")
+            if isinstance(aid, str) and aid.startswith("c:"):
+                aid = made.get(aid[2:])
+            if not aid:
+                continue
+            if kind == "edit":
+                store.update_annotation(int(aid), {k: v for k, v in (op.get("fields") or {}).items() if k in ("title", "note", "quote", "color", "locator")})
+            elif kind == "del":
+                store.delete_annotation(int(aid))
+        except Exception as e:
+            print("[inkwell] a note from the phone was skipped:", e)
+    return made
+
+
+def push(dev, ops, phone_now, jops=None, aops=None):
     """Apply the phone's changes. Its clock may be off from ours: shift its times by the difference."""
     skew = time.time() - float(phone_now) if phone_now else 0.0
     made = push_journal(jops, skew) if jops else {}
+    made_anns = push_anns(aops) if aops else {}
     applied, older = 0, 0
     for op in ops or []:
         try:
@@ -294,7 +323,7 @@ def push(dev, ops, phone_now, jops=None):
             continue
         store.update_item(iid, {field: op.get("value")}, clock=ts)
         applied += 1
-    return {"applied": applied, "kept_ours": older, "made": made, "now": time.time()}
+    return {"applied": applied, "kept_ours": older, "made": made, "made_anns": made_anns, "now": time.time()}
 
 
 # ---------------------------------------------------------------- files sent from the phone
@@ -467,7 +496,7 @@ def _make_handler():
                     return self._send(200, data)
                 if path == "/sync/push" and method == "POST":
                     b = self.json_body()
-                    return self._send(200, push(dev, b.get("ops"), b.get("now"), b.get("jops")))
+                    return self._send(200, push(dev, b.get("ops"), b.get("now"), b.get("jops"), b.get("aops")))
                 if path == "/sync/sent" and method == "POST":
                     _sent(dev, self.json_body().get("ids") or [])
                     return self._send(200, {"ok": True})
@@ -518,12 +547,15 @@ def _make_handler():
                     threading.Thread(target=save, daemon=True).start()
                     return self._send(200, {"ok": True})
                 # an item's full details on the phone: read them, edit them, and the same buttons as the computer's
-                m = re.match(r"^/sync/item/(\d+)(/annotations|/edit|/remove|/reanalyze|/pullcover|/hardcover|/poster|/fill|/expire)?$", path)
+                m = re.match(r"^/sync/item/(\d+)(/annotations|/edit|/remove|/reanalyze|/pullcover|/hardcover|/poster|/fill|/expire|/tracks|/audiobook|/subs/[es]\d+\.vtt|/audio/\d+)?$", path)
                 if m:
                     sub = m.group(2) or ""
                     # (Android can't send PATCH or a DELETE with a body: edits come as POST /edit, removal as POST /remove)
                     want = {("GET", ""): ("GET", ""), ("GET", "/annotations"): ("GET", "/annotations"), ("POST", "/edit"): ("PATCH", ""),
                             ("POST", "/remove"): ("DELETE", "")}.get((method, sub)) or (("POST", sub) if method == "POST" and sub not in ("", "/annotations") else None)
+                    # the reader's subtitles, audiobook and its chapters (read only)
+                    if method == "GET" and re.match(r"^/(tracks|audiobook|subs/[es]\d+\.vtt|audio/\d+)$", sub):
+                        want = ("GET", sub)
                     if not want:
                         return self._send(405, {"error": "not allowed"})
                     target = f"/api/items/{m.group(1)}{want[1]}"

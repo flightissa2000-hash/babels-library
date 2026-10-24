@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS item_clock (item_id INTEGER NOT NULL, field TEXT NOT 
 CREATE TABLE IF NOT EXISTS tombstones (kind TEXT NOT NULL, ref_id INTEGER NOT NULL, ts REAL NOT NULL, PRIMARY KEY (kind, ref_id));
 """
 # the fields a phone can change too (phonesync.py); everything else about an item is the computer's to say
-SYNC_FIELDS = ("progress", "last_location", "opened_at", "favorite", "wanted", "watched", "watched_at", "audio_pos")
+SYNC_FIELDS = ("progress", "last_location", "opened_at", "favorite", "wanted", "watched", "watched_at", "audio_pos", "direction")
 
 DEFAULT_SETTINGS = {
     "discover_ignored": [],
