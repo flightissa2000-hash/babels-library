@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="wordtown">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Babel's Library widget</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/themes.css">
+<link rel="stylesheet" href="css/widget.css">
+<script>try{var t=localStorage.getItem('inkwell-theme');if(['gruvbox'].indexOf(t)>=0)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body class="widget">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
+</svg>
+<div class="w-frame">
+  <div class="w-hot" aria-hidden="true"></div>
+  <header class="w-head pywebview-drag-region" title="Drag to move · double-click to open Babel's Library full screen">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <h1 id="wTitle">Recently read</h1>
+    <div class="w-tools">
+      <button class="icon-btn" id="wPin" title="Pin the widget here so it can't be moved">
+        <svg viewBox="0 0 24 24"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z"/></svg></button>
+      <button class="icon-btn" id="wCorner" title="Move to a corner">
+        <svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zM14 3h7v7h-2V5h-5zM3 14h2v5h5v2H3zM19 14h2v7h-7v-2h5z"/></svg></button>
+      <button class="icon-btn" id="wExpand" title="Open Babel's Library full screen">
+        <svg viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.4l-5.3 5.3-1.4-1.4L17.6 5H14zM3 14h2v3.6l5.3-5.3 1.4 1.4L6.4 19H10v2H3z"/></svg></button>
+      <button class="icon-btn" id="wClose" title="Close Babel's Library">✕</button>
+    </div>
+  </header>
+  <div class="w-corners" id="wCorners" hidden>
+    <button data-corner="top-left">Top left</button><button data-corner="top-right">Top right</button>
+    <button data-corner="bottom-left">Bottom left</button><button data-corner="bottom-right">Bottom right</button>
+  </div>
+  <label class="w-search"><span class="sr">Search library</span>
+    <input id="wSearch" type="search" placeholder="Search your library…" autocomplete="off">
+  </label>
+  <div class="w-tabs" id="wTabs" role="tablist"><button data-tab="recent" class="on">Recent</button><button data-tab="music">Music</button><button data-tab="video">TV &amp; Movies</button></div>
+  <ol class="w-list" id="wList"></ol>
+  <footer class="w-foot" id="wFoot">Double-click to open Babel's Library full screen</footer>
+  <!-- the widget-sized video player (TV & Movies tab) -->
+  <div class="w-video" id="wVideo" hidden>
+    <video id="wVid" preload="metadata" playsinline></video>
+    <div class="wv-top"><button class="icon-btn sm" id="wvBack" title="Back to the list">‹</button><b id="wvTitle"></b>
+      <button class="icon-btn sm" id="wvBig" title="Watch in the big window">⤢</button></div>
+    <div class="wv-ctl">
+      <div class="wv-seek" id="wvSeek"><i id="wvFill"></i></div>
+      <div class="wv-row">
+        <button class="icon-btn sm" id="wvPrev" title="Previous episode">⏮</button>
+        <button class="icon-btn" id="wvPlay" title="Play or pause">▶</button>
+        <button class="icon-btn sm" id="wvNext" title="Next episode">⏭</button>
+        <span class="wv-time" id="wvTime">0:00 / 0:00</span>
+        <input type="range" id="wvVol" min="0" max="1" step="0.01" value="1" aria-label="Video volume" title="Volume">
+        <button class="icon-btn sm wv-qbtn" id="wvQueue" title="Episodes in this series">☰</button>
+      </div>
+    </div>
+    <div class="wv-queue" id="wvQueuePanel" hidden><div class="pl-qhead"><b id="wvQTitle">Episodes</b><button class="icon-btn sm" id="wvQClose" title="Close">✕</button></div><ol id="wvQList"></ol></div>
+  </div>
+  <div class="w-player" id="player" hidden>
+    <div class="w-pl-top">
+      <div class="pl-cover" id="plCover"></div>
+      <div class="pl-meta"><b id="plTitle"></b><span id="plArtist"></span></div>
+      <button class="icon-btn sm" id="plClose" title="Stop">✕</button>
+    </div>
+    <div class="w-pl-bar" id="wSeek"><i id="plFill"></i></div>
+    <div class="w-pl-ctl">
+      <button class="icon-btn" id="plShuf" title="Shuffle">⤨</button>
+      <button class="icon-btn" id="plPrev" title="Previous">⏮</button>
+      <button class="icon-btn pl-big" id="plPlay" title="Play or pause">▶</button>
+      <button class="icon-btn" id="plNext" title="Next">⏭</button>
+      <button class="icon-btn pl-qbtn" id="plQueue" title="Up next">☰<sup id="plQCount"></sup></button>
+      <select id="plRate" class="pl-rate" title="Audiobook speed" hidden><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option><option value="2.5">2.5×</option><option value="3">3×</option><option value="3.5">3.5×</option><option value="4">4×</option><option value="4.5">4.5×</option><option value="5">5×</option></select>
+    </div>
+    <label class="w-vol" title="Volume"><span aria-hidden="true">🔈</span><input type="range" id="plVol" min="0" max="1" step="0.01" value="1" aria-label="Volume"><span aria-hidden="true">🔊</span></label>
+    <div class="pl-queue w-queue" id="plQueuePanel" hidden>
+      <div class="pl-qhead"><b>Queue</b><button class="btn sm" id="plQueueClear">Clear</button><button class="icon-btn sm" id="plQueueClose" title="Close">✕</button></div>
+      <ol class="pl-qlist" id="plQueueList"></ol>
+    </div>
+  </div>
+</div>
+<script src="js/drivewatch.js"></script>
+<script src="js/themes.js"></script>
+<script src="js/player.js"></script>
+<script src="js/widget.js"></script>
+</body>
+</html>

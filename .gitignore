@@ -1,0 +1,9 @@
+# your library, its database, settings, keys and backups: personal, never uploaded
+library_data/
+relocate.json
+# Python
+__pycache__/
+*.pyc
+# downloaded at runtime (Cloudflare tunnel program, ad-block lists)
+app/bin/
+*.part

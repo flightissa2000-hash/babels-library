@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en" data-theme="wordtown">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Babel's Library</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/themes.css">
+<script>try{var t=localStorage.getItem('inkwell-theme');if(['gruvbox'].indexOf(t)>=0)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
+</svg>
+
+<header class="topbar">
+  <button class="brand" id="brand" title="Back to the whole library">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">Babel's Library</span>
+  </button>
+  <div class="seg area" id="areaSeg" role="tablist" aria-label="Collection">
+    <button data-area="books" class="on" title="Books and graphic novels">Books</button><button data-area="articles" title="Research articles and papers">Articles</button><button data-area="music" title="Albums and songs">Music</button><button data-area="video" title="TV shows and movies">TV &amp; Movies</button>
+  </div>
+  <label class="search">
+    <span class="sr">Search</span>
+    <input id="search" type="search" placeholder="Search titles, authors, tags…" autocomplete="off">
+  </label>
+  <div class="seg" id="kindSeg" role="radiogroup" aria-label="Show">
+    <button data-kind="all" class="on">All</button>
+  </div>
+  <label class="ctl"><span>Group</span>
+    <select id="groupBy">
+    </select>
+  </label>
+  <div class="seg views" id="viewSeg" hidden role="radiogroup" aria-label="View">
+    <button data-view="catalog" title="Card catalogue"><svg viewBox="0 0 24 24"><path d="M3 4h18v7H3zm2 2v3h14V6zm5 1h4v1h-4zM3 13h18v7H3zm2 2v3h14v-3zm5 1h4v1h-4z"/></svg><span>Catalogue</span></button>
+    <button data-view="heist" title="Calling cards"><svg viewBox="0 0 24 24"><path d="M3 6l17-3-2 6 4 1-18 11 4-9-5-1z"/></svg><span>Cards</span></button>
+  </div>
+  <span class="spacer"></span>
+  <button class="btn journal-btn" id="browserBtn" title="Browse the web (one tab, ads blocked, history, saved passwords)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg></button>
+  <button class="btn journal-btn" id="newsBtn" title="The news: science, and your county, city, state and country"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 01-2-2zM17 9h3v8a2 2 0 01-2 2M7 8h7M7 11h7M7 14h4"/></svg><span>News</span></button>
+  <button class="btn journal-btn" id="discoverBtn" title="Find books online and keep a wishlist"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span>Discover</span></button>
+  <button class="btn journal-btn" id="journalBtn" title="Your review journal (J)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12a2 2 0 012 2v14a2 2 0 01-2 2H5zm2 0v18M10 7h6M10 10h6"/></svg><span>Journal</span></button>
+  <button class="btn primary" id="addBtn">Add to library</button>
+  <button class="icon-btn" id="fsBtn" title="Full screen (F11)" hidden><svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zM14 3h7v7h-2V5h-5zM3 14h2v5h5v2H3zM19 14h2v7h-7v-2h5z"/></svg></button>
+  <button class="icon-btn" id="widgetBtn" title="Shrink Babel's Library into the desktop widget" hidden><svg viewBox="0 0 24 24"><path d="M3 4h18v12H3zm2 2v8h14V6zM8 18h8v2H8z"/></svg></button>
+  <button class="icon-btn" id="settingsBtn" title="Settings and themes"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9 4l-2.1-.7-.6-1.5 1-2-1.9-1.9-2 1-1.5-.6L13.2 3h-2.4l-.7 2.1-1.5.6-2-1L4.7 6.6l1 2-.6 1.5L3 10.8v2.4l2.1.7.6 1.5-1 2 1.9 1.9 2-1 1.5.6.7 2.1h2.4l.7-2.1 1.5-.6 2 1 1.9-1.9-1-2 .6-1.5 2.1-.7z"/></svg></button>
+</header>
+
+<div class="statusline" id="statusline"></div>
+<nav class="collbar" id="collBar" aria-label="Collections"></nav>
+
+<main id="library" tabindex="-1"></main>
+
+<aside id="drawer" class="drawer" aria-hidden="true">
+  <button class="icon-btn close" data-close-drawer title="Close">✕</button>
+  <div id="drawerBody"></div>
+</aside>
+
+<!-- Add dialog -->
+<dialog id="addDialog" class="dlg">
+  <form method="dialog" class="dlg-head"><h2>Add to library</h2><button class="icon-btn" value="cancel" title="Close">✕</button></form>
+  <div class="tabs" role="tablist">
+    <button class="on" data-tab="files">Files</button>
+    <button data-tab="scan">Scan a folder</button>
+    <button data-tab="import">Zotero or Calibre</button>
+    <button data-tab="lookup">DOI, ISBN or link</button>
+    <button data-tab="manual">Type it in</button>
+  </div>
+  <div class="libnote"><span class="ln-lbl">Main library folder</span><code class="libPath">…</code>
+    <button class="btn sm" type="button" data-action="reveal-lib">Open</button>
+    <button class="btn sm" type="button" data-action="switch-lib" title="Pick a different main folder, and optionally move the whole library there">Change or move…</button></div>
+  <section class="tab on" data-pane="files">
+    <label class="drop" id="dropZone">
+      <input type="file" id="fileInput" accept=".pdf,.epub,.cbz,.cbr,.cb7,.cbt,.mp3,.flac,.m4a,.aac,.ogg,.opus,.wav,.aiff,.mp4,.m4v,.mkv,.webm,.avi,.mov" multiple hidden>
+      <strong>Drop books, articles, comics, music or video here</strong>
+      <span>or click to choose files. Each one is sorted, tagged and cited automatically.</span>
+    </label>
+    <div class="inbox-note">
+      <p>Files you save into your inbox folder are added on their own:</p>
+      <code id="inboxPath">…</code>
+      <button class="btn" id="openInbox" type="button">Open inbox folder</button>
+    </div>
+    <ul class="upload-list" id="uploadList"></ul>
+  </section>
+  <section class="tab" data-pane="scan">
+    <p class="hint">Pick a folder. Babel's Library looks through it (and every folder inside it) and adds each article, book or graphic novel that isn't already in your library.</p>
+    <div class="row"><input id="scanFolder" placeholder="Folder to scan" style="flex:1"><button class="btn" type="button" data-pick="#scanFolder">Browse…</button><button class="btn" type="button" id="devBtn" title="A phone or e-reader plugged in by USB (shown under This PC, with no drive letter)">Phone / e-reader…</button></div>
+    <div class="dev-browse" id="devBrowse" hidden><div class="dev-crumbs" id="devCrumbs"></div><div class="dev-list" id="devList"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm" type="button" id="devClose">Cancel</button><button class="btn sm primary" type="button" id="devUse" disabled>Use this folder</button></div></div>
+    <label class="row" style="margin-top:10px"><input type="checkbox" id="scanMove" checked> Move the files into the library folder (untick to leave the originals where they are and copy them instead)</label>
+    <div class="row" style="margin-top:12px"><button class="btn" type="button" id="scanCheck">Check folder</button><button class="btn primary" type="button" id="scanGo" disabled>Add new files</button></div>
+    <div class="import-result" id="scanResult"></div>
+  </section>
+  <section class="tab" data-pane="import">
+    <div class="import-card">
+      <h4>Zotero</h4>
+      <p class="hint">Brings in your Zotero items with their PDFs, tags, notes and highlights. Choose the folder that contains <code>zotero.sqlite</code>.</p>
+      <div class="row"><input id="zoteroDir" style="flex:1"><button class="btn" type="button" data-pick="#zoteroDir">Browse…</button></div>
+      <label class="row" style="margin-top:8px"><input type="checkbox" id="zoteroMove" checked> Move the files into the library folder. Zotero won't be able to open those attachments afterwards; untick to copy instead.</label>
+      <label class="row" style="margin-top:8px"><input type="checkbox" id="zoteroOA" checked> For items without a PDF, download a free open-access copy if one exists (needs internet)</label>
+      <div class="row" style="margin-top:10px"><button class="btn" type="button" data-import-check="zotero">Check</button><button class="btn primary" type="button" data-import-go="zotero" disabled>Import from Zotero</button></div>
+      <div class="import-result" id="zoteroResult"></div>
+    </div>
+    <div class="import-card">
+      <h4>Calibre</h4>
+      <p class="hint">Brings in your Calibre books with their files, covers, tags and descriptions. Choose the folder that contains <code>metadata.db</code>.</p>
+      <div class="row"><input id="calibreDir" style="flex:1"><button class="btn" type="button" data-pick="#calibreDir">Browse…</button></div>
+      <label class="row" style="margin-top:8px"><input type="checkbox" id="calibreMove" checked> Move the files into the library folder. Calibre won't be able to open those books afterwards; untick to copy instead.</label>
+      <div class="row" style="margin-top:10px"><button class="btn" type="button" data-import-check="calibre">Check</button><button class="btn primary" type="button" data-import-go="calibre" disabled>Import from Calibre</button></div>
+      <div class="import-result" id="calibreResult"></div>
+    </div>
+  </section>
+  <section class="tab" data-pane="lookup">
+    <form id="lookupForm" class="row">
+      <input id="lookupInput" placeholder="10.1038/nature12373  ·  978-0-14-312854-0  ·  https://…" required>
+      <button class="btn primary">Look up</button>
+    </form>
+    <label class="row" style="margin-top:8px"><input type="checkbox" id="lookupDownload" checked> Download a free copy into my library folder if one exists (open-access papers, arXiv, direct PDF links)</label>
+    <p class="hint">Needs an internet connection. Everything else in Babel's Library works offline.</p>
+    <div id="lookupResult"></div>
+  </section>
+  <section class="tab" data-pane="manual">
+    <form id="manualForm" class="form-grid"></form>
+  </section>
+</dialog>
+
+<!-- Settings dialog -->
+<dialog id="settingsDialog" class="dlg wide">
+  <form method="dialog" class="dlg-head"><h2>Settings</h2><button class="icon-btn" value="cancel" title="Close">✕</button></form>
+  <h3>Look</h3>
+  <div class="theme-picker" id="themePicker"></div>
+  <h3>Library</h3>
+  <div class="form-grid"><label>Sort books by<select id="sortBy">
+      <option value="added">Recently added</option>
+      <option value="opened">Recently read</option>
+      <option value="title">Title</option>
+      <option value="author">Author</option>
+      <option value="year-desc">Newest first</option>
+      <option value="year-asc">Oldest first</option>
+      <option value="notes">Most annotated</option>
+    </select></label></div>
+  <h3>Library folder</h3>
+  <div class="form-grid">
+    <div class="full row"><code id="libFolder" style="flex:1"></code><button class="btn" type="button" data-action="switch-lib">Change…</button><button class="btn" type="button" data-action="reveal-lib">Open</button><button class="btn" type="button" data-action="rescan" title="Recheck the library folder: add files that appeared, find files that moved, and remove entries whose files are gone">↻ Refresh library</button></div>
+    <p class="hint full" style="margin:0">Every file Babel's Library manages lives here: Articles, Books, Graphic Novels, Music (by artist and album), TV (by series and season) and Movies. You can switch to a different folder at any time.</p>
+  </div>
+  <h3>Automatic updates</h3>
+  <p class="status-row" id="inboxStatus"></p>
+  <div class="form-grid" id="settingsForm">
+    <div class="full row"><label style="flex:1">Inbox folder <input name="watch_folder" id="inboxFolder"></label><button class="btn" type="button" data-pick="#inboxFolder" style="align-self:flex-end">Browse…</button></div>
+    <label class="full"><input type="checkbox" name="inbox_move"> Move files out of the inbox into the library folder (instead of leaving a copy in the inbox)</label>
+    <label><input type="checkbox" name="watch_enabled"> Watch the inbox folder</label>
+    <label>Check every <input type="number" name="watch_interval" min="3" max="600" style="width:5em"> seconds</label>
+    <label class="full"><input type="checkbox" name="auto_lookup"> Fill in details from CrossRef / OpenLibrary when a file has a DOI or ISBN (online only)</label>
+  </div>
+  <h3>Book catalogue</h3>
+  <p class="hint">Two free keys add more to the catalogue's “Hot off the press” and to each book's “More info” page. Both are optional.</p>
+  <div class="form-grid" id="dvKeys">
+    <label class="full">New York Times Books API key <input name="nyt_key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key"></label>
+    <p class="full hint">The bestseller lists and NYT reviews. Get one at developer.nytimes.com: sign in, choose Apps → New App, switch on “Books API”, save, and copy the key.</p>
+    <label class="full">Hardcover API token <input name="hardcover_token" type="password" autocomplete="off" spellcheck="false" placeholder="paste your token"></label>
+    <p class="full hint">New releases with exact dates, ratings and readers' reviews. Get it at hardcover.app: sign in, open Settings → Hardcover API, and copy the token.</p>
+    <div class="full row"><button class="btn" type="button" id="dvTestKeys">Save and test</button><span class="hint" id="dvKeyResult"></span></div>
+  </div>
+  <h3>News</h3>
+  <label class="ab-on"><input type="checkbox" id="newsAlertsOn"> Tell me when a new event turns up in the News “Events” section <span class="hint">(checked in the background every few hours; your paired phone gets a notification too)</span></label>
+  <h3>Your search sites</h3>
+  <p class="hint">Websites of your own choosing, shown as buttons on a catalogue entry's “More info” page next to the other links. Put <code>{q}</code> in the address where the title goes (and <code>{author}</code> for the author, if the site wants it), then tick the departments it's for. They open in their own window.</p>
+  <div class="ss-list" id="searchSites"></div>
+  <label class="ab-on"><input type="checkbox" id="adblockOn"> Block ads, pop-ups and trackers in the reading window <span class="hint" id="adblockStatus"></span></label>
+  <div class="row"><button class="btn" type="button" id="ssAdd">＋ Add a site</button><span class="hint">Example: <code>https://www.example.com/search?q={q}</code></span></div>
+  <div id="deskSettings" hidden>
+  <h3>Desktop widget</h3>
+  <div class="form-grid" id="deskForm">
+    <label>When Babel's Library starts, open<select name="start_mode"><option value="full">The full window</option><option value="widget">The desktop widget</option></select></label>
+    <label><input type="checkbox" name="widget_locked"> Pin the widget in place (it can't be moved or resized)</label>
+    <label>Widget position<select name="widget_corner">
+      <option value="top-right">Top right</option><option value="top-left">Top left</option>
+      <option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option>
+      <option value="custom">Where I put it</option></select></label>
+    <label><input type="checkbox" name="main_fullscreen"> Open Babel's Library full screen on start</label>
+    <label><input type="checkbox" name="widget_autohide"> Hide the widget's title bar until you point at its top edge</label>
+    <div class="full row"><button class="btn" type="button" id="showWidget">Switch to the widget</button><span class="hint">Babel's Library is either this full window or the widget. Drag the widget by its title bar, then use its pin to fix it in place. Other windows can sit in front of it. Double-click it to come back here full screen.</span></div>
+  </div>
+  </div>
+  <h3>Phone</h3>
+  <p class="hint">The Babel's Library app for Android keeps the same library, reading positions, progress and watched marks as this computer, and fetches files from it. Pair a phone once: open the app, tap <b>Pair with computer</b>, and type the code below.</p>
+  <div class="ph-box" id="phoneBox"></div>
+  <label class="ab-on"><input type="checkbox" id="phoneRemote"> Reach this library from anywhere (cellular data too), through a free Cloudflare tunnel <span class="hint" id="phoneRemoteNote"></span></label>
+  <h3>Local AI</h3>
+  <div class="ai-status" id="aiStatus"></div>
+  <div class="form-grid">
+    <label>Ollama address <input name="ollama_url" form="x" id="ollamaUrl"></label>
+    <label>Model <select id="ollamaModel"></select></label>
+  </div>
+  <h3>Export</h3>
+  <div class="row wrap">
+    <a class="btn" href="/api/export/annotations?format=md" download>All annotations (Markdown)</a>
+    <a class="btn" href="/api/export/annotations?format=json" download>All annotations (JSON)</a>
+    <select id="bibStyle"><option>APA (7th ed.)</option><option>MLA (9th ed.)</option><option>Chicago (17th ed.)</option></select>
+    <a class="btn" id="bibLink" href="#" download>Bibliography</a>
+  </div>
+  <div class="dlg-foot"><button class="btn primary" id="saveSettings">Save settings</button></div>
+</dialog>
+
+<!-- Reader -->
+<div id="reader" class="reader" hidden>
+  <header class="reader-bar">
+    <button class="btn" id="readerClose">Back to library</button>
+    <button class="btn" id="rToc" title="Table of contents (T)"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 5h2v2H4zm4 0h12v2H8zM4 11h2v2H4zm4 0h12v2H8zm-4 6h2v2H4zm4 0h12v2H8z"/></svg>Contents</button>
+    <div class="reader-title" id="readerTitle"></div>
+    <div class="reader-nav">
+      <button class="icon-btn" id="rPrev" title="Previous">‹</button>
+      <span id="rPos"></span>
+      <button class="icon-btn" id="rNext" title="Next">›</button>
+    </div>
+    <div class="view-wrap">
+      <button class="btn" id="rView" aria-haspopup="true" title="Page layout and width">View</button>
+      <div class="view-pop" id="viewPop" hidden>
+        <div class="seg" id="rMode"><button data-mode="scroll">Scrolling</button><button data-mode="single">One page</button><button data-mode="double">Two pages</button></div>
+        <label class="wrow">Page width <input type="range" id="rWidth" min="35" max="100" step="1"></label>
+        <label class="wrow" id="rFontRow">Text size <input type="range" id="rFont" min="70" max="200" step="5"></label>
+        <p class="hint">In page modes, click the left or right side of the page to turn it.</p>
+      </div>
+    </div>
+    <button class="btn" id="rMark" title="Bookmark this page (B)" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Bookmark</button>
+    <button class="btn" id="rPin" title="Drop a pin with a comment anywhere on the page" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6a2.5 2.5 0 010 5z"/></svg>Pin</button>
+    <button class="btn" id="rDir" hidden>Left to right</button>
+    <button class="icon-btn" id="rFull" title="Full screen / window"><svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zM14 3h7v7h-2V5h-5zM3 14h2v5h5v2H3zM19 14h2v7h-7v-2h5z"/></svg></button>
+    <button class="btn" id="rListen" hidden title="Play this book's audiobook from here; the sentence being read is highlighted">🎧 Listen</button>
+    <button class="btn" id="toggleNotes">Notes <span id="noteCount"></span></button>
+    <button class="icon-btn" id="rHide" title="Hide the toolbar for distraction-free reading (H)"><svg viewBox="0 0 24 24"><path d="M3 5h18v3H3zM7 11h10M7 15h10M7 19h6" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button>
+  </header>
+  <div class="reader-main">
+    <aside class="toc-panel" id="tocPanel" hidden>
+      <div class="toc-head"><h3 id="tocTitle">Contents</h3><button class="icon-btn sm" id="tocClose" title="Close">✕</button></div>
+      <div class="toc-jump" id="tocJump" hidden><label>Go to page <input type="number" id="tocPage" min="1"></label><button class="btn sm" id="tocGo">Go</button></div>
+      <div class="toc-list" id="tocList"></div>
+    </aside>
+    <div class="doc-stage" id="docStage">
+      <div class="reader-doc" id="readerDoc"></div>
+      <button class="page-arrow left" id="pgLeft" title="Previous page (←)" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15.5 4.5L8 12l7.5 7.5"/></svg></button>
+      <button class="page-arrow right" id="pgRight" title="Next page (→)" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M8.5 4.5L16 12l-7.5 7.5"/></svg></button>
+    </div>
+    <aside class="notes-panel" id="notesPanel">
+      <div class="notes-head">
+        <h3>Annotations</h3>
+        <div class="row">
+          <a class="btn sm" id="exportMd" download>Export .md</a>
+          <a class="btn sm" id="exportJson" download>.json</a>
+        </div>
+      </div>
+      <p class="hint" id="notesHint">Select text to highlight it and attach a note.</p>
+      <ol class="notes-list" id="notesList"></ol>
+    </aside>
+  </div>
+  <div class="sel-pop" id="selPop" hidden>
+    <button data-color="yellow" title="Yellow highlight"></button>
+    <button data-color="green" title="Green highlight"></button>
+    <button data-color="blue" title="Blue highlight"></button>
+    <button data-color="pink" title="Pink highlight"></button>
+    <button class="note-btn" data-color="note">Highlight + note</button>
+  </div>
+</div>
+
+<dialog id="libDialog" class="dlg">
+  <form method="dialog" class="dlg-head"><h2>Library folder</h2><button class="icon-btn" value="cancel" title="Close">✕</button></form>
+  <p class="hint">Now using <code id="libCurrent"></code></p>
+  <div class="row"><input id="libNew" style="flex:1" placeholder="New library folder"><button class="btn" type="button" data-pick="#libNew">Browse…</button></div>
+  <div class="lib-modes">
+    <label><input type="radio" name="libMode" value="move" checked> <span><b>Move my files there.</b> Everything in the current library folder moves to the new one.</span></label>
+    <label><input type="radio" name="libMode" value="switch"> <span><b>Just switch.</b> Existing files stay where they are; new files go to the new folder.</span></label>
+  </div>
+  <label class="row"><input type="checkbox" id="libScan" checked> Also add any books, articles, comics or media already in the new folder</label>
+  <div class="dlg-foot"><button class="btn primary" type="button" id="libGo">Use this folder</button></div>
+</dialog>
+
+<div class="player" id="player" hidden>
+  <div class="pl-cover" id="plCover"></div>
+  <div class="pl-meta"><b id="plTitle"></b><span id="plArtist"></span></div>
+  <div class="pl-ctl"><button class="icon-btn" id="plShuf" title="Shuffle" aria-pressed="false">⤨</button><button class="icon-btn" id="plPrev" title="Previous">⏮</button><button class="icon-btn pl-big" id="plPlay" title="Play or pause">▶</button><button class="icon-btn" id="plNext" title="Next">⏭</button></div>
+  <input type="range" id="plSeek" min="0" max="0" step="0.1" value="0" aria-label="Position"><span class="pl-time" id="plTime">0:00</span>
+  <select id="plRate" class="pl-rate" title="Audiobook speed" hidden><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option><option value="2.5">2.5×</option><option value="3">3×</option><option value="3.5">3.5×</option><option value="4">4×</option><option value="4.5">4.5×</option><option value="5">5×</option></select>
+  <input type="range" id="plVol" min="0" max="1" step="0.01" value="1" aria-label="Volume" class="pl-vol">
+  <button class="icon-btn pl-qbtn" id="plQueue" title="Queue">☰<sup id="plQCount"></sup></button>
+  <button class="icon-btn" id="plClose" title="Stop and clear">✕</button>
+  <audio id="audio" preload="auto"></audio>
+  <div class="pl-queue" id="plQueuePanel" hidden>
+    <div class="pl-qhead"><b>Queue</b><button class="btn sm" id="plQueueClear">Clear up next</button><button class="icon-btn sm" id="plQueueClose" title="Close">✕</button></div>
+    <ol class="pl-qlist" id="plQueueList"></ol>
+  </div>
+</div>
+
+<div class="selbar" id="selBar" hidden>
+  <b id="selCount"></b>
+  <button class="btn sm" id="selAll">Select all shown</button><button class="btn sm" id="selNone">Clear</button>
+  <select id="selAdd"></select>
+  <button class="btn sm" id="selRemove" hidden></button>
+  <button class="btn primary sm" id="selOut" title="Copy the selected files to a folder you choose">⇩ Check out…</button>
+  <button class="btn sm" id="selDone">Done</button>
+</div>
+
+<dialog id="coDialog" class="dlg small">
+  <form method="dialog" class="dlg-head"><h2>Check out files</h2><button class="icon-btn" value="cancel" title="Close">✕</button></form>
+  <p id="coSummary"></p>
+  <label class="field">Copy them to this folder
+    <span class="row"><input id="coFolder" placeholder="e.g. E:\ or C:\Users\you\Desktop\For the trip"><button class="btn" type="button" id="coBrowse">Browse…</button></span>
+  </label>
+  <label class="check"><input type="checkbox" id="coKeep"> Keep the library's folders (Books\…, Music\Artist\Album…)</label>
+  <div class="dlg-foot"><button class="btn primary" id="coGo" type="button">Copy files</button></div>
+</dialog>
+
+<dialog id="askDialog" class="dlg small">
+  <form method="dialog">
+    <div class="dlg-head"><h2 id="askTitle"></h2></div>
+    <label class="field"><span id="askLabel"></span><input id="askInput" autocomplete="off"></label>
+    <div class="dlg-foot"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="ok">OK</button></div>
+  </form>
+</dialog>
+
+<div class="lightbox" id="lightbox" hidden>
+  <div class="lb-bar"><span id="lbCap"></span><button class="icon-btn" id="lbOut" title="Zoom out">−</button><button class="icon-btn" id="lbIn" title="Zoom in">+</button><button class="icon-btn" id="lbFit" title="Fit to screen">⤢</button><button class="icon-btn" id="lbClose" title="Close (Esc)">✕</button></div>
+  <div class="lb-stage" id="lbStage"><img id="lbImg" alt=""></div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="vendor/epub.min.js"></script>
+<script src="js/drivewatch.js"></script>
+<script src="js/themes.js"></script>
+<script src="js/comic.js"></script>
+<script src="js/player.js"></script>
+<script src="js/media.js"></script>
+<script src="js/app.js"></script>
+<script src="js/inbrowser.js"></script>
+<script src="js/news.js"></script>
+<script src="js/collections.js"></script>
+<script src="js/journal.js"></script>
+<script src="js/discover.js"></script>
+<script src="js/reader.js"></script>
+</body>
+</html>

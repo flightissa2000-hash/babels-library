@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en" data-theme="wordtown">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start · Babel's Library</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/themes.css">
+<script>try{var t=localStorage.getItem('inkwell-theme');document.documentElement.dataset.theme=['gruvbox'].indexOf(t)>=0?t:'wordtown'}catch(e){}
+addEventListener('storage',function(e){if(e.key==='inkwell-theme')document.documentElement.dataset.theme=['gruvbox'].indexOf(e.newValue)>=0?e.newValue:'wordtown'});</script>
+<style>
+  body{overflow:auto}
+  .bw{max-width:980px;margin:0 auto;padding:28px 20px 60px}
+  .bw-tabs{display:flex;gap:8px;margin-bottom:22px}
+  .bw-tabs button{padding:9px 18px;border-radius:999px;border:var(--btn-border,2px solid var(--line));background:var(--btn-bg,var(--surface));color:var(--btn-ink,var(--ink));font:700 1rem var(--font-ui);cursor:pointer}
+  .bw-tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  /* start page: a glowing hero with the date, one big search pill, round site tiles */
+  .bw-hero{position:relative;margin:10px 0 34px;padding:46px 20px 40px;border-radius:28px;overflow:hidden;text-align:center;
+    background:radial-gradient(circle at 18% 20%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 45%),
+      radial-gradient(circle at 85% 80%,color-mix(in srgb,var(--accent2,var(--accent)) 40%,transparent),transparent 50%),var(--surface);
+    border:var(--btn-border,2px solid var(--line));box-shadow:0 12px 40px rgba(0,0,0,.18)}
+  .bw-hero::before{content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,transparent,color-mix(in srgb,var(--accent) 18%,transparent),transparent 30%);animation:bw-spin 18s linear infinite;pointer-events:none}
+  @keyframes bw-spin{to{transform:rotate(1turn)}}
+  .bw-hero>*{position:relative}
+  .bw-day{font:700 .9rem var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .bw h1{font:var(--display-weight,700) clamp(2.2rem,5vw,3.6rem)/1.05 var(--font-display);margin:8px 0 22px;color:var(--ink)}
+  .bw-search{display:flex;align-items:center;gap:6px;max-width:760px;margin:0 auto;padding:6px;border-radius:999px;background:var(--field-bg,var(--bg));
+    border:var(--field-border,2px solid var(--line));box-shadow:0 8px 24px rgba(0,0,0,.18)}
+  .bw-search .ic{flex:none;width:34px;text-align:center;font-size:1.2rem;opacity:.7}
+  .bw-search input{flex:1;min-width:0;font-size:1.2rem;padding:12px 4px;border:0;background:transparent;box-shadow:none;outline:none}
+  /* the search pill's buttons: Search (accent, with its lens), Wikipedia (a serif W badge), and a small round
+     "reopen the last page" button with that site's icon */
+  .bw-search button{flex:none;display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;height:46px;padding:0 18px 0 8px;
+    font:800 .95rem var(--font-ui);cursor:pointer;transition:transform .12s,filter .12s,box-shadow .12s;box-shadow:inset 0 -3px 0 rgba(0,0,0,.14)}
+  .bw-search button:hover{transform:translateY(-1px);filter:brightness(1.06)}
+  .bw-search button:active{transform:translateY(1px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.14)}
+  .bw-search button .bd{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;font-size:1.05rem;line-height:1}
+  .bw-go{background:var(--accent);color:var(--accent-ink)}
+  .bw-go .bd{background:color-mix(in srgb,var(--accent-ink) 22%,transparent)}
+  .bw-wiki{background:color-mix(in srgb,var(--ink) 8%,var(--surface));color:var(--ink)}
+  .bw-wiki .bd{background:var(--ink);color:var(--surface);font:700 1.1rem "Libre Baskerville",Georgia,serif}
+  .bw-search button.bw-again{width:46px;padding:0;justify-content:center;position:relative;background:color-mix(in srgb,var(--ink) 8%,var(--surface));color:var(--ink)}
+  .bw-again img{width:22px;height:22px;border-radius:5px}
+  .bw-again i{position:absolute;right:-3px;bottom:-3px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:900 .78rem var(--font-ui);font-style:normal;
+    background:var(--accent);color:var(--accent-ink);border:2px solid var(--surface)}
+  .bw-again-tip{display:block;max-width:760px;margin:10px auto 0;font:600 .86rem var(--font-ui);color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bw-again-tip a{color:inherit}
+  @media (max-width:640px){.bw-search button{padding:0 12px 0 6px}.bw-search button .lbl{display:none}.bw-search button{padding:0 7px}}
+  /* history waits under a handle at the bottom: pull it up (or click it) */
+  .bw-pull{position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 26px 10px;
+    border-radius:18px 18px 0 0;border:var(--btn-border,2px solid var(--line));border-bottom:0;background:var(--surface);color:var(--ink);font:800 .9rem var(--font-ui);
+    cursor:grab;box-shadow:0 -6px 22px rgba(0,0,0,.16);touch-action:none;user-select:none}
+  .bw-pull::before{content:"";width:38px;height:5px;border-radius:3px;background:color-mix(in srgb,var(--ink) 35%,transparent)}
+  .bw-pull small{font-weight:600;color:var(--ink-soft)}
+  .bw-sheet{position:fixed;left:0;right:0;bottom:0;height:82vh;z-index:6;display:flex;flex-direction:column;background:var(--bg);background-image:var(--texture);
+    border-top:var(--btn-border,2px solid var(--line));border-radius:22px 22px 0 0;box-shadow:0 -14px 40px rgba(0,0,0,.28);transform:translateY(101%);transition:transform .32s cubic-bezier(.2,.9,.25,1.08)}
+  .bw-sheet.open{transform:none}
+  .bw-sheet.drag{transition:none}
+  .bw-sheet-top{flex:none;display:flex;flex-direction:column;align-items:center;padding:10px 20px 6px;cursor:grab;touch-action:none}
+  .bw-sheet-top::before{content:"";width:46px;height:5px;border-radius:3px;background:color-mix(in srgb,var(--ink) 35%,transparent);margin-bottom:8px}
+  .bw-sheet-top h2{margin:0}
+  .bw-sheet-body{flex:1;overflow:auto;padding:4px 20px 30px;max-width:980px;width:100%;margin:0 auto;box-sizing:border-box}
+  .bw-shade{position:fixed;inset:0;z-index:5;background:rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .25s}
+  .bw-shade.on{opacity:1;pointer-events:auto}
+  .bw-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:16px;margin-bottom:26px}
+  .bw-tile{display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 6px;border-radius:18px;color:var(--ink);text-decoration:none;transition:transform .15s,background .15s}
+  .bw-tile:hover{transform:translateY(-4px);background:color-mix(in srgb,var(--surface) 70%,transparent)}
+  .bw-tile .ring{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:var(--btn-border,2px solid var(--line));box-shadow:0 6px 16px rgba(0,0,0,.18)}
+  .bw-tile img{width:30px;height:30px;border-radius:6px}
+  .bw-tile b{font-size:.86rem;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bw h2{font:var(--display-weight,700) 1.3rem var(--font-display);margin:22px 0 10px;color:var(--ink)}
+  .bw-row{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid color-mix(in srgb,var(--line) 25%,transparent);color:var(--ink)}
+  .bw-row img{width:18px;height:18px;flex:none}
+  .bw-row a{flex:1;min-width:0;color:inherit;text-decoration:none;display:flex;flex-direction:column}
+  .bw-row a b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bw-row a small{color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bw-row time{flex:none;color:var(--ink-soft);font-size:.82rem;font-family:var(--font-ui)}
+  .bw-row .x{flex:none;border:0;background:none;color:var(--ink-soft);cursor:pointer;font-size:1rem}
+  .bw-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .bw-tools input[type=search]{flex:1;min-width:220px}
+  .bw-list{background:var(--surface);border:var(--btn-border,2px solid var(--line));border-radius:var(--radius-lg,14px);overflow:hidden}
+  .bw-pw{font-family:var(--font-ui);letter-spacing:.08em;min-width:9em;color:var(--ink)}
+  .bw-note{padding:14px;border:2px dashed var(--line);border-radius:var(--radius-sm);color:var(--ink-soft);margin:12px 0}
+  .bw-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;padding:14px;background:var(--surface);border:var(--btn-border,2px solid var(--line));border-radius:var(--radius-lg,14px);margin-bottom:12px}
+  .bw-edit label{display:flex;flex-direction:column;gap:4px;font-weight:700;color:var(--ink)}
+  .hint{color:var(--ink-soft)}
+  html.embed .bw{padding-top:18px}
+  /* Word Town: a sunny sky card with chunky outlines and candy-coloured tiles */
+  [data-theme=wordtown] .bw-hero{background:linear-gradient(#bfe7ff 0 72%,#8fd17a 72%);border:4px solid #22304a;box-shadow:0 6px 0 #22304a}
+  [data-theme=wordtown] .bw-hero::before{inset:0;animation:none;background:radial-gradient(circle at 14% 22%,#fff 0 34px,transparent 35px),radial-gradient(circle at 19% 19%,#fff 0 26px,transparent 27px),radial-gradient(circle at 86% 16%,#fff 0 40px,transparent 41px),radial-gradient(circle at 92% 8%,#ffc93c 0 22px,transparent 23px)}
+  [data-theme=wordtown] .bw-search{background:#fff;border:3px solid #22304a;box-shadow:0 5px 0 #22304a}
+  [data-theme=wordtown] .bw-search button{border:2.5px solid #22304a!important;box-shadow:0 3px 0 #22304a;height:44px}
+  [data-theme=wordtown] .bw-search button:active{box-shadow:0 1px 0 #22304a}
+  [data-theme=wordtown] .bw-wiki{background:#fff3d6;color:#22304a}
+  [data-theme=wordtown] .bw-wiki .bd{background:#22304a;color:#fff3d6}
+  [data-theme=wordtown] .bw-search button.bw-again{background:#8fd17a;width:44px}
+  [data-theme=wordtown] .bw-again i{border-color:#22304a;background:#ffc93c;color:#22304a}
+  [data-theme=wordtown] .bw-pull,[data-theme=wordtown] .bw-sheet{border:3px solid #22304a;border-bottom:0}
+  [data-theme=wordtown] .bw-pull{box-shadow:0 -4px 0 #22304a}
+  [data-theme=wordtown] .bw-tile .ring{border:3px solid #22304a;box-shadow:0 4px 0 #22304a;background:#fff}
+  [data-theme=wordtown] .bw-tile:nth-child(4n+1) .ring{background:#ffc93c}[data-theme=wordtown] .bw-tile:nth-child(4n+2) .ring{background:#8fd17a}
+  [data-theme=wordtown] .bw-tile:nth-child(4n+3) .ring{background:#ff8fc0}[data-theme=wordtown] .bw-tile:nth-child(4n+4) .ring{background:#4aa8ff}
+  [data-theme=wordtown] .bw-list{border:3px solid #22304a;box-shadow:0 5px 0 #22304a}
+  /* Gruvbox: a terminal, square corners, a prompt in the search box */
+  [data-theme=gruvbox] .bw-hero{text-align:left;border-radius:4px;background:#1d2021;border:1px solid #504945;box-shadow:none;padding:30px 28px}
+  [data-theme=gruvbox] .bw-hero::before{display:none}
+  [data-theme=gruvbox] .bw h1{font-size:2rem;color:#fabd2f}
+  [data-theme=gruvbox] .bw h1::before{content:"~/ ";color:#b8bb26}
+  [data-theme=gruvbox] .bw-day{color:#83a598}
+  [data-theme=gruvbox] .bw-search{margin:0;max-width:none;border-radius:3px;background:#282828;border:1px solid #665c54;box-shadow:none}
+  [data-theme=gruvbox] .bw-search .ic::before{content:"$";color:#fe8019}
+  [data-theme=gruvbox] .bw-search .ic{font-size:0}
+  [data-theme=gruvbox] .bw-search .ic::before{font-size:1.1rem}
+  [data-theme=gruvbox] .bw-search input{font-family:"IBM Plex Mono",monospace}
+  [data-theme=gruvbox] .bw-search button{border-radius:3px;box-shadow:none;height:40px;font-family:"IBM Plex Mono",monospace}
+  [data-theme=gruvbox] .bw-search button .bd{border-radius:2px;width:26px;height:26px}
+  [data-theme=gruvbox] .bw-go{background:#fabd2f;color:#1d2021}
+  [data-theme=gruvbox] .bw-wiki{background:#3c3836;color:#83a598}
+  [data-theme=gruvbox] .bw-wiki .bd{background:#83a598;color:#1d2021}
+  [data-theme=gruvbox] .bw-search button.bw-again{background:#3c3836;width:40px}
+  [data-theme=gruvbox] .bw-again i{border-radius:2px;background:#b8bb26;color:#1d2021;border-color:#282828}
+  [data-theme=gruvbox] .bw-pull,[data-theme=gruvbox] .bw-sheet{border-radius:4px 4px 0 0;border:1px solid #504945;border-bottom:0;font-family:"IBM Plex Mono",monospace}
+  [data-theme=gruvbox] .bw-tile .ring{border-radius:4px;background:#32302f;border:1px solid #504945;box-shadow:none}
+  [data-theme=gruvbox] .bw-tile:hover{background:#32302f}
+  [data-theme=gruvbox] .bw-tile b{font-family:"IBM Plex Mono",monospace;font-weight:400;color:#a89984}
+  [data-theme=gruvbox] .bw-list{border-radius:4px}
+  [data-theme=gruvbox] .bw-tabs button{border-radius:3px;font-family:"IBM Plex Mono",monospace}
+  .bw-sheet-top{flex-direction:row;justify-content:space-between;cursor:default;padding:16px 22px 8px;max-width:980px;width:100%;margin:0 auto;box-sizing:border-box}
+  .bw-sheet-top::before{display:none}
+  .bw-sheet-top .x{font-size:1.2rem;padding:6px 8px}
+  .bw-sheet:not(.open){visibility:hidden;transition:transform .32s,visibility 0s .32s}
+  /* ================= start page layouts (🧭 Layout → Start page) ================= */
+  .bw-layoutpick h4{grid-column:1/-1;margin:6px 4px 0;font:800 .74rem var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .ho{position:relative;display:block;width:100%;height:62px;border-radius:8px;margin-bottom:4px;overflow:hidden;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent);background:color-mix(in srgb,var(--ink) 6%,var(--bg))}
+  .ho b{position:absolute;display:block}
+  .ho-classic b{left:12%;right:12%;top:12%;height:38%;border-radius:8px;background:var(--accent);box-shadow:0 26px 0 -14px color-mix(in srgb,var(--ink) 30%,transparent)}
+  .ho-minimal b{left:18%;right:18%;top:40%;height:16%;border-radius:999px;border:2px solid var(--accent)}
+  .ho-dash b{left:6%;top:14%;width:36%;height:70%;border-radius:6px;background:var(--accent);box-shadow:44px 0 0 -2px color-mix(in srgb,var(--ink) 25%,transparent),80px 0 0 -2px color-mix(in srgb,var(--ink) 25%,transparent)}
+  .ho-orbit{background:radial-gradient(circle,#fff 1px,transparent 1.5px) 0 0/11px 11px,#0b0820}
+  .ho-orbit b{left:50%;top:50%;width:16px;height:16px;margin:-8px;border-radius:50%;background:#ffd84d;box-shadow:0 0 12px #ffb000,0 0 0 16px transparent,0 0 0 17px rgba(255,255,255,.3),0 0 0 28px transparent,0 0 0 29px rgba(255,255,255,.2)}
+  .ho-vend{background:#c0262d}
+  .ho-vend b{left:10%;top:10%;width:56%;height:80%;border-radius:4px;background:repeating-linear-gradient(0deg,rgba(255,255,255,.35) 0 2px,#203040 2px 18px);box-shadow:30px 0 0 -6px #222}
+
+  /* Minimal: a big quiet search with lots of room, one row of small site icons */
+  html[data-home=minimal] .bw-tabs{opacity:.55;transition:opacity .2s}
+  html[data-home=minimal] .bw-tabs:hover{opacity:1}
+  .hm-min{min-height:68vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center}
+  .hm-min .bw-day{letter-spacing:.3em}
+  .hm-min .bw-search{width:min(720px,100%);max-width:none;margin:0;padding:8px;box-shadow:0 18px 50px rgba(0,0,0,.18)}
+  .hm-min .bw-search input{font-size:1.35rem;padding:16px 6px}
+  .hm-minrow{display:flex;flex-wrap:wrap;justify-content:center;gap:16px}
+  .hm-minrow a{display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--surface);border:1px solid color-mix(in srgb,var(--line) 40%,transparent);transition:transform .15s}
+  .hm-minrow a:hover{transform:translateY(-3px)}
+  .hm-minrow img{width:22px;height:22px;border-radius:4px}
+  /* Dashboard: a clock and the search on the left; a speed dial and what you read lately on the right */
+  .hm-dash{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:28px;align-items:start}
+  .hm-dl{position:sticky;top:12px;padding:26px;border-radius:22px;background:var(--surface);border:var(--btn-border,2px solid var(--line));box-shadow:0 12px 30px rgba(0,0,0,.15)}
+  .hm-clock{font:var(--display-weight,700) 5.2rem/1 var(--font-display);color:var(--ink);letter-spacing:-.02em}
+  .hm-dl .bw-day{margin:6px 0 18px}
+  .hm-dl .bw-search{max-width:none;margin:0}
+  .hm-dl .bw-search .lbl{display:none}
+  .hm-dl .bw-search button{padding:0 8px}
+  .hm-resume{display:flex;flex-direction:column;gap:3px;width:100%;margin-top:16px;padding:12px 14px;border-radius:14px;border:1px dashed var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--ink);text-align:left;cursor:pointer}
+  .hm-resume small{font:800 .7rem var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+  .hm-resume b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hm-dr h2{margin:0 0 10px}
+  .hm-dial{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:22px}
+  .hm-key{position:relative;display:flex;align-items:center;gap:10px;padding:14px;border-radius:14px;background:var(--surface);border:var(--btn-border,2px solid var(--line));color:var(--ink);text-decoration:none;transition:transform .15s,box-shadow .15s}
+  .hm-key:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,0,0,.15)}
+  .hm-key img{width:24px;height:24px;border-radius:5px}
+  .hm-key b{font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hm-n{position:absolute;top:4px;right:8px;font:800 .66rem var(--font-ui);color:var(--ink-soft)}
+  .hm-lately{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;border:var(--btn-border,2px solid var(--line));background:var(--surface)}
+  .hm-lately a{display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--ink);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--line) 25%,transparent)}
+  .hm-lately a:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  .hm-lately img{width:18px;height:18px}
+  .hm-lately span{flex:1;min-width:0;display:flex;flex-direction:column}
+  .hm-lately b,.hm-lately small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hm-lately small,.hm-lately time{color:var(--ink-soft);font-size:.78rem}
+  /* Constellation: a starfield; the search is the sun, your sites orbit it */
+  html[data-home=orbit],html[data-home=orbit] body{background:radial-gradient(ellipse at 50% 45%,#2a1a55 0,#0b0820 55%,#04030c);color:#eef}
+  html[data-home=orbit] body::before{display:none}
+  html[data-home=orbit] .bw-tabs button{background:rgba(255,255,255,.08);color:#dde;border-color:rgba(255,255,255,.2)}
+  html[data-home=orbit] .bw-tabs button.on{background:#ffd84d;color:#1a1033}
+  @keyframes hm-spin{to{transform:rotate(360deg)}}
+  @keyframes hm-unspin{to{transform:rotate(-360deg)}}
+  @keyframes hm-twinkle{50%{opacity:.4}}
+  .hm-sky{position:relative;height:min(80vh,800px);min-height:760px;display:grid;place-items:center;overflow:hidden}
+  .hm-stars{position:absolute;inset:0;background:radial-gradient(circle,#fff 1px,transparent 1.6px) 0 0/97px 97px,radial-gradient(circle,#cdf 1px,transparent 1.6px) 40px 60px/131px 131px,radial-gradient(circle,#fff 1.4px,transparent 2px) 70px 20px/173px 173px;animation:hm-twinkle 4s ease-in-out infinite}
+  .hm-ring{position:absolute;left:50%;top:50%;border-radius:50%;border:1px dashed rgba(200,210,255,.18);animation:hm-spin 90s linear infinite}
+  .hm-ring.r1{width:480px;height:480px;margin:-240px}
+  .hm-ring.r2{width:700px;height:700px;margin:-350px;animation-duration:150s;animation-direction:reverse}
+  .hm-sky:hover .hm-ring,.hm-sky:hover .hm-planet span{animation-play-state:paused}
+  .hm-planet{position:absolute;left:50%;top:50%;width:0;height:0;transform:rotate(var(--a)) translateX(var(--rr)) rotate(calc(-1 * var(--a)));color:#eef;text-decoration:none}
+  .hm-ring.r1 .hm-planet{--rr:240px}.hm-ring.r2 .hm-planet{--rr:350px}
+  .hm-planet span{position:absolute;left:-30px;top:-30px;display:grid;place-items:center;width:60px;height:60px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#8fb0ff,#3b2e8f 70%);box-shadow:0 0 22px rgba(140,170,255,.6);animation:hm-unspin 90s linear infinite;transition:transform .2s}
+  .hm-ring.r2 .hm-planet span{background:radial-gradient(circle at 35% 30%,#ff9ad5,#7a2a6f 70%);box-shadow:0 0 22px rgba(255,140,210,.5);animation-duration:150s;animation-direction:reverse}
+  .hm-planet span img{width:28px;height:28px;border-radius:6px}
+  .hm-planet:hover span{transform:scale(1.25)}
+  .hm-planet b{position:absolute;left:-60px;top:36px;width:120px;text-align:center;font:700 .74rem var(--font-ui);color:#cbd3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 4px #000}
+  .hm-sun{position:relative;z-index:2;width:min(500px,86vw);padding:34px 30px;border-radius:50%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(circle,rgba(255,216,77,.28),rgba(255,140,30,.08) 55%,transparent 70%)}
+  .hm-sun h1{color:#fff7d6;text-shadow:0 0 30px #ffb000;margin:6px 0 18px}
+  .hm-sun .bw-day{color:#ffd84d}
+  .hm-sun .bw-search{max-width:100%;margin:0;background:rgba(10,8,30,.75);border:1px solid rgba(255,216,77,.5)!important;box-shadow:0 0 30px rgba(255,180,0,.35)}
+  .hm-sun .bw-search input{color:#fff}
+  .hm-sun .bw-search .lbl{display:none}
+  .hm-sun .bw-search button{padding:0 6px}
+  /* Vending machine: sites behind the glass in lettered slots; the keypad display is the search */
+  .hm-vend{display:flex;justify-content:center;padding:6px 0 30px}
+  .hm-machine{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 260px;grid-template-rows:auto 1fr auto;gap:16px 18px;width:min(980px,100%);padding:22px;border-radius:22px 22px 10px 10px;
+    background:linear-gradient(180deg,#e0353d,#a8161e);box-shadow:inset 0 0 0 6px #7d0f15,0 30px 60px rgba(0,0,0,.35)}
+  .hm-sign{grid-column:1/-1;text-align:center;padding:10px;border-radius:10px;background:#fff6d6;color:#a8161e;font:400 2.2rem/1 "Anton",sans-serif;letter-spacing:.18em;box-shadow:inset 0 -4px 0 rgba(0,0,0,.15),0 0 24px rgba(255,240,180,.6)}
+  .hm-glass{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:0;padding:14px;border-radius:8px;background:linear-gradient(135deg,rgba(255,255,255,.18),transparent 40%),#1a2430;box-shadow:inset 0 0 0 4px #0c1218,inset 0 0 40px rgba(0,0,0,.6)}
+  .hm-item{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px 30px;border-bottom:6px solid #4a5866;color:#e6eef6;text-decoration:none;transition:transform .2s}
+  .hm-item:hover{transform:translateY(-4px)}
+  .hm-snack{display:grid;place-items:center;width:62px;height:76px;border-radius:8px;background:linear-gradient(160deg,#fff,#dfe6ee);box-shadow:0 6px 12px rgba(0,0,0,.45)}
+  .hm-snack img{width:32px;height:32px;border-radius:6px}
+  .hm-item:nth-child(4n+1) .hm-snack{background:linear-gradient(160deg,#ffe066,#f2b705)}.hm-item:nth-child(4n+2) .hm-snack{background:linear-gradient(160deg,#8fe3a8,#2fb36a)}
+  .hm-item:nth-child(4n+3) .hm-snack{background:linear-gradient(160deg,#9cc7ff,#3b7bff)}.hm-item:nth-child(4n+4) .hm-snack{background:linear-gradient(160deg,#ffb3d1,#ff4f8b)}
+  .hm-item b{font:700 .74rem var(--font-ui);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hm-coil{position:absolute;left:12%;right:12%;bottom:8px;height:10px;background:repeating-linear-gradient(90deg,#c9d3dc 0 3px,transparent 3px 9px);border-radius:5px;opacity:.8}
+  .hm-item em{position:absolute;bottom:-4px;right:6px;padding:1px 6px;border-radius:4px;background:#0c1218;color:#ffd84d;font:700 .66rem "IBM Plex Mono",monospace;font-style:normal}
+  .hm-panel{display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:12px;background:linear-gradient(180deg,#2b2f36,#16191e);box-shadow:inset 0 2px 0 rgba(255,255,255,.08)}
+  .hm-lcd{padding:12px;border-radius:6px;background:#0a1a10;color:#6bff9e;font:700 .82rem/1.5 "IBM Plex Mono",monospace;text-shadow:0 0 8px #6bff9e;box-shadow:inset 0 0 12px rgba(0,0,0,.8)}
+  .hm-panel .bw-search{flex-wrap:wrap;max-width:none;margin:0;padding:8px;border-radius:10px;background:#0a1a10;border:2px solid #000!important;box-shadow:none}
+  .hm-panel .bw-search .ic{display:none}
+  .hm-panel .bw-search input{flex:1 1 100%;color:#6bff9e;font:700 1rem "IBM Plex Mono",monospace;padding:8px}
+  .hm-panel .bw-search input::placeholder{color:#2f7a4a}
+  .hm-panel .bw-search button{flex:1;height:40px;border-radius:8px;box-shadow:0 4px 0 #000}
+  .hm-panel .bw-search .bw-again{display:none}
+  .hm-coin{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:2px solid #000;background:#3a3f47;color:#ffd84d;font:700 .72rem "IBM Plex Mono",monospace;letter-spacing:.06em;cursor:pointer;text-align:left}
+  .hm-coin i{flex:none;width:8px;height:30px;border-radius:4px;background:#000;box-shadow:inset 0 0 0 2px #888}
+  .hm-coin:hover{background:#4a515b}
+  .hm-tray{grid-column:1/-1;padding:12px;border-radius:8px;background:#0c1218;color:#5b6876;text-align:center;font:700 .9rem "IBM Plex Mono",monospace;letter-spacing:.5em;box-shadow:inset 0 6px 14px rgba(0,0,0,.7)}
+
+  /* a bookmark's ✕ shows when you point at it */
+  .bw-tile,.hm-key{position:relative}
+  .bw-unpin{position:absolute;top:0;right:4px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;cursor:pointer;opacity:0;transition:opacity .15s}
+  .bw-tile:hover .bw-unpin,.hm-key:hover .bw-unpin,.hm-minrow a:hover .bw-unpin,.hm-planet:hover .bw-unpin,.hm-item:hover .bw-unpin{opacity:1}
+  .hm-minrow a{position:relative}.hm-minrow .bw-unpin{top:-9px;right:-9px;width:20px;height:20px}
+  .hm-planet .bw-unpin{left:14px;top:-40px;right:auto;z-index:2}
+  .hm-item .bw-unpin{top:4px;right:4px}
+  .hm-key .bw-unpin{top:-8px;right:-8px}
+
+  /* ---- the start page layouts in each theme ---- */
+  /* Word Town: Constellation is a daytime sky (a big sun, balloon-bright planets with navy outlines), the vending machine is candy-coloured */
+  html[data-theme=wordtown][data-home=orbit],html[data-theme=wordtown][data-home=orbit] body{background:linear-gradient(#bfe7ff 0 80%,#8fd17a 80%);color:#22304a}
+  html[data-theme=wordtown][data-home=orbit] .bw-tabs button{background:#fff;color:#22304a;border:3px solid #22304a}
+  html[data-theme=wordtown][data-home=orbit] .bw-tabs button.on{background:#ff6b4a;color:#fff}
+  [data-theme=wordtown] .hm-stars{background:radial-gradient(circle at 15% 20%,#fff 0 40px,transparent 41px),radial-gradient(circle at 21% 17%,#fff 0 30px,transparent 31px),radial-gradient(circle at 85% 75%,#fff 0 44px,transparent 45px),radial-gradient(circle at 79% 78%,#fff 0 32px,transparent 33px);animation:none}
+  [data-theme=wordtown] .hm-ring{border:3px dashed rgba(34,48,74,.35)}
+  [data-theme=wordtown] .hm-planet span{background:#ffc93c;border:3px solid #22304a;box-shadow:0 4px 0 #22304a}
+  [data-theme=wordtown] .hm-ring.r2 .hm-planet span{background:#ff8fc0;border:3px solid #22304a;box-shadow:0 4px 0 #22304a}
+  [data-theme=wordtown] .hm-ring.r1 .hm-planet:nth-child(2n) span{background:#8fd17a}[data-theme=wordtown] .hm-ring.r2 .hm-planet:nth-child(2n) span{background:#4aa8ff}
+  [data-theme=wordtown] .hm-planet b{color:#22304a;text-shadow:0 1px 0 #fff;font-family:"Fredoka",sans-serif}
+  [data-theme=wordtown] .hm-sun{background:radial-gradient(circle,#ffe58a,#ffc93c 60%,transparent 62%);border-radius:50%}
+  [data-theme=wordtown] .hm-sun h1{color:#22304a;text-shadow:none}
+  [data-theme=wordtown] .hm-sun .bw-day{color:#22304a}
+  [data-theme=wordtown] .hm-sun .bw-search{background:#fff;border:3px solid #22304a!important;box-shadow:0 5px 0 #22304a}
+  [data-theme=wordtown] .hm-sun .bw-search input{color:#22304a}
+  [data-theme=wordtown] .hm-machine{background:linear-gradient(180deg,#ff6b4a,#e8553a);border:4px solid #22304a;box-shadow:0 8px 0 #22304a;border-radius:28px 28px 14px 14px}
+  [data-theme=wordtown] .hm-sign{background:#fff;color:#22304a;border:3px solid #22304a;font-family:"Fredoka",sans-serif;font-weight:700;box-shadow:0 4px 0 #22304a}
+  [data-theme=wordtown] .hm-glass{background:linear-gradient(135deg,rgba(255,255,255,.5),transparent 40%),#bfe7ff;border:3px solid #22304a;box-shadow:none}
+  [data-theme=wordtown] .hm-item{color:#22304a;border-bottom-color:#22304a}
+  [data-theme=wordtown] .hm-snack{border:3px solid #22304a;box-shadow:0 4px 0 #22304a}
+  [data-theme=wordtown] .hm-item em{background:#22304a}
+  [data-theme=wordtown] .hm-coil{background:repeating-linear-gradient(90deg,#22304a 0 3px,transparent 3px 9px)}
+  [data-theme=wordtown] .hm-panel{background:#ffc93c;border:3px solid #22304a}
+  [data-theme=wordtown] .hm-lcd,[data-theme=wordtown] .hm-panel .bw-search{background:#22304a;color:#8fd17a}
+  [data-theme=wordtown] .hm-panel .bw-search input{color:#8fd17a}
+  [data-theme=wordtown] .hm-coin{background:#fff;color:#22304a;border:3px solid #22304a}
+  [data-theme=wordtown] .hm-tray{background:#22304a;color:#bfe7ff}
+  /* Gruvbox: Constellation is a warm terminal night sky; the vending machine is muted brown and orange, monospace */
+  html[data-theme=gruvbox][data-home=orbit],html[data-theme=gruvbox][data-home=orbit] body{background:radial-gradient(ellipse at 50% 45%,#32302f,#1d2021 60%);color:#ebdbb2}
+  html[data-theme=gruvbox][data-home=orbit] .bw-tabs button{background:#282828;color:#a89984;border:1px solid #504945}
+  html[data-theme=gruvbox][data-home=orbit] .bw-tabs button.on{background:#fabd2f;color:#1d2021}
+  [data-theme=gruvbox] .hm-stars{background:radial-gradient(circle,#a89984 1px,transparent 1.6px) 0 0/97px 97px,radial-gradient(circle,#83a598 1px,transparent 1.6px) 40px 60px/131px 131px}
+  [data-theme=gruvbox] .hm-ring{border:1px dashed #504945}
+  [data-theme=gruvbox] .hm-planet span{background:radial-gradient(circle at 35% 30%,#8ec07c,#427b58 70%);box-shadow:0 0 14px rgba(142,192,124,.35);border-radius:4px}
+  [data-theme=gruvbox] .hm-ring.r2 .hm-planet span{background:radial-gradient(circle at 35% 30%,#d3869b,#8f3f71 70%);box-shadow:0 0 14px rgba(211,134,155,.3)}
+  [data-theme=gruvbox] .hm-planet b{color:#a89984;font-family:"IBM Plex Mono",monospace;font-weight:400}
+  [data-theme=gruvbox] .hm-sun{background:radial-gradient(circle,rgba(250,189,47,.22),rgba(254,128,25,.06) 55%,transparent 70%)}
+  [data-theme=gruvbox] .hm-sun h1{color:#fabd2f;text-shadow:0 0 24px rgba(250,189,47,.5)}
+  [data-theme=gruvbox] .hm-sun .bw-search{background:#282828;border:1px solid #665c54!important;box-shadow:0 0 24px rgba(250,189,47,.2);border-radius:3px}
+  [data-theme=gruvbox] .hm-sun .bw-search input{color:#ebdbb2}
+  [data-theme=gruvbox] .hm-machine{background:linear-gradient(180deg,#3c3836,#282828);box-shadow:inset 0 0 0 4px #504945,0 24px 50px rgba(0,0,0,.5);border-radius:6px}
+  [data-theme=gruvbox] .hm-sign{background:#1d2021;color:#fe8019;font-family:"IBM Plex Mono",monospace;font-weight:700;letter-spacing:.3em;box-shadow:0 0 18px rgba(254,128,25,.25);border:1px solid #fe8019}
+  [data-theme=gruvbox] .hm-glass{background:linear-gradient(135deg,rgba(235,219,178,.06),transparent 40%),#1d2021;box-shadow:inset 0 0 0 2px #504945}
+  [data-theme=gruvbox] .hm-item{color:#ebdbb2;border-bottom-color:#504945}
+  [data-theme=gruvbox] .hm-item:nth-child(4n+1) .hm-snack{background:#fabd2f}[data-theme=gruvbox] .hm-item:nth-child(4n+2) .hm-snack{background:#b8bb26}
+  [data-theme=gruvbox] .hm-item:nth-child(4n+3) .hm-snack{background:#83a598}[data-theme=gruvbox] .hm-item:nth-child(4n+4) .hm-snack{background:#d3869b}
+  [data-theme=gruvbox] .hm-snack{border-radius:3px}
+  [data-theme=gruvbox] .hm-item b{font-family:"IBM Plex Mono",monospace;font-weight:400}
+  [data-theme=gruvbox] .hm-item em{color:#fe8019}
+  [data-theme=gruvbox] .hm-panel{background:#282828;box-shadow:inset 0 0 0 1px #504945}
+  [data-theme=gruvbox] .hm-lcd,[data-theme=gruvbox] .hm-panel .bw-search{background:#1d2021;color:#b8bb26;text-shadow:0 0 6px rgba(184,187,38,.6)}
+  [data-theme=gruvbox] .hm-panel .bw-search input{color:#b8bb26}
+  [data-theme=gruvbox] .hm-coin{background:#3c3836;color:#fabd2f;border:1px solid #504945;border-radius:3px}
+  [data-theme=gruvbox] .hm-tray{background:#1d2021;color:#665c54}
+
+  /* the 🧭 Layout picker: a little diagram of each layout */
+  .bw-tabs{flex-wrap:wrap}
+  .bw-layoutbtn{margin-left:auto}
+  .bw-layoutpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:-8px 0 22px;padding:12px;border-radius:16px;
+    background:var(--surface);border:var(--btn-border,2px solid var(--line));box-shadow:0 12px 30px rgba(0,0,0,.25)}
+  .bw-layoutpick[hidden]{display:none}
+  .bw-blpick{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px;border-radius:12px;border:2px solid transparent;background:none;color:var(--ink);cursor:pointer;text-align:left;font-family:var(--font-ui)}
+  .bw-blpick:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+  .bw-blpick.on{border-color:var(--accent)}
+  .bw-blpick>b{font-size:.92rem}.bw-blpick small{font-size:.75rem;color:var(--ink-soft)}
+  .lo{position:relative;display:block;width:100%;height:62px;border-radius:8px;margin-bottom:4px;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent);overflow:hidden;
+    background:color-mix(in srgb,var(--ink) 6%,var(--bg))}
+  .lo b{position:absolute;display:block;background:var(--accent)}
+  .lo-standard b{left:0;right:0;top:0;height:22%}
+  .lo-bottom b{left:0;right:0;bottom:0;height:22%}
+  .lo-rail b{left:0;top:0;bottom:0;width:26%}
+  .lo-orb b{right:8%;bottom:12%;width:22px;height:22px;border-radius:50%;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 30%,transparent),0 0 14px var(--accent)}
+  .lo-tv{background:linear-gradient(135deg,#8a5a34,#5a3a22)}
+  .lo-tv b{left:7%;top:12%;width:62%;height:76%;border-radius:12px;background:#1e2a2a;box-shadow:inset 0 0 12px rgba(120,255,200,.35)}
+  .lo-tv::after{content:"";position:absolute;right:9%;top:22%;width:14px;height:14px;border-radius:50%;background:#d8b866;box-shadow:0 22px 0 #d8b866}
+
+</style>
+</head>
+<body>
+<div class="bw">
+  <nav class="bw-tabs" id="tabs"><button data-t="start">Start</button><button type="button" id="histBtn">🕘 History</button><button data-t="passwords">Passwords</button><button type="button" id="layoutBtn" class="bw-layoutbtn">🧭 Layout</button></nav>
+  <div class="bw-layoutpick" id="layoutPick" hidden></div>
+  <section id="view"></section>
+</div>
+<div class="bw-shade" id="shade"></div>
+<section class="bw-sheet" id="sheet" aria-label="History"><div class="bw-sheet-top"><h2>History</h2><button class="x" id="sheetClose" title="Close (Esc)">✕</button></div><div class="bw-sheet-body" id="hist"></div></section>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// every call carries X-Babel: pages from other sites can't send it, so they can't read your history or passwords
+const api = async (method, path, body) => {
+  const r = await fetch(path, { method, headers: { "X-Babel": "1", "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
+};
+const icon = (url) => { try { const u = new URL(url); return `https://icons.duckduckgo.com/ip3/${u.hostname}.ico`; } catch (e) { return ""; } };
+const when = (t) => { const d = new Date(t * 1000); return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+const day = (t) => { const d = new Date(t * 1000), n = new Date(); const y = new Date(n - 864e5); return d.toDateString() === n.toDateString() ? "Today" : d.toDateString() === y.toDateString() ? "Yesterday" : d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }); };
+// inside the library window's browser (an iframe there): sites open in its website view, not in this frame
+const host = (() => { try { return window.parent !== window && window.parent.Browser ? window.parent.Browser : null; } catch (e) { return null; } })();
+if (host) document.documentElement.classList.add("embed");
+/* ---------------- the browser's layout (🧭 Layout): where its controls live. Two calm ones, two wild ones */
+const BLAYOUTS = [["standard", "Standard", "The bar along the top"], ["bottom", "Bottom bar", "The bar along the bottom"], ["rail", "Side rail", "Labelled controls down the left"],
+  ["orb", "Orb", "No bar: an orb in the corner fans out the controls"], ["tv", "TV set", "Websites on a retro telly, knobs and all"]];
+const blayout = () => { try { const s = localStorage.getItem("inkwell-blayout"); return BLAYOUTS.some((b) => b[0] === s) ? s : "standard"; } catch (e) { return "standard"; } };
+function setBLayout(s) {
+  try { localStorage.setItem("inkwell-blayout", s); } catch (e) {}
+  try { window.parent !== window && window.parent.Browser && window.parent.Browser.setLayout(s); } catch (e) {}
+  document.querySelectorAll("[data-blpick]").forEach((b) => b.classList.toggle("on", b.dataset.blpick === s));
+}
+/* ---------------- the start page's layout (also under 🧭 Layout): Classic, two calm ones and two wild ones */
+const HOMES = [["classic", "Classic", "The search card and round site tiles"], ["minimal", "Minimal", "One big search, lots of quiet"],
+  ["dash", "Dashboard", "A clock, a speed dial and what you read lately"], ["orbit", "Constellation", "Your sites orbit the search like planets"],
+  ["vend", "Vending machine", "Pick a site by its slot, coin in to reopen"]];
+const bhome = () => { try { const s = localStorage.getItem("inkwell-bhome"); return HOMES.some((b) => b[0] === s) ? s : "classic"; } catch (e) { return "classic"; } };
+function setBHome(s) {
+  try { localStorage.setItem("inkwell-bhome", s); } catch (e) {}
+  document.querySelectorAll("[data-bhpick]").forEach((b) => b.classList.toggle("on", b.dataset.bhpick === s));
+  if (tab() !== "passwords") renderStart();
+}
+addEventListener("storage", (e) => { if (e.key === "inkwell-bhome" && tab() !== "passwords") renderStart(); });
+document.getElementById("layoutBtn").onclick = () => {
+  const p = document.getElementById("layoutPick");
+  if (!p.hidden) { p.hidden = true; return; }
+  p.innerHTML = `<h4>Start page</h4>` + HOMES.map(([k, n, d]) => `<button class="bw-blpick ${bhome() === k ? "on" : ""}" data-bhpick="${k}"><i class="ho ho-${k}"><b></b></i><b>${n}</b><small>${d}</small></button>`).join("")
+    + `<h4>Browser controls</h4>` + BLAYOUTS.map(([k, n, d]) => `<button class="bw-blpick ${blayout() === k ? "on" : ""}" data-blpick="${k}"><i class="lo lo-${k}"><b></b></i><b>${n}</b><small>${d}</small></button>`).join("");
+  p.hidden = false;
+};
+document.addEventListener("click", async (e) => {
+  const un = e.target.closest("[data-unpin]");
+  if (un) { e.preventDefault(); e.stopPropagation(); await api("DELETE", "/api/browser/bookmarks", { id: Number(un.dataset.unpin) }); return renderStart(); }
+  const h = e.target.closest("[data-bhpick]");
+  if (h) return setBHome(h.dataset.bhpick);
+  const b = e.target.closest("[data-blpick]");
+  if (b) return setBLayout(b.dataset.blpick);
+  if (!e.target.closest("#layoutPick, #layoutBtn")) { const p = document.getElementById("layoutPick"); if (p) p.hidden = true; }
+});
+
+// which half of the browser's split view this page is in (it opens its sites there)
+const pane = new URLSearchParams(location.search).get("pane") || "main";
+const go = (text, wiki = false) => { if (host) return host.go(text, wiki, pane); location.href = "/browser-go?" + new URLSearchParams({ q: text, ...(wiki ? { w: 1 } : {}) }); };
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-unpin]")) return;          // (a bookmark's ✕ takes it off; it doesn't open it)
+  const a = host && e.target.closest("a[href^='http']");
+  if (a) { e.preventDefault(); host.go(a.href, false, pane); }
+}, true);
+addEventListener("pointerdown", () => { if (host && host.focusPane) host.focusPane(pane); }, true);
+
+function tab() { return (location.hash || "#start").slice(1); }
+async function render() {
+  const t = tab() === "history" ? "start" : tab();
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+  document.title = t === "passwords" ? "Passwords" : "Start";   // the window adds "Babel's Library ·"
+  if (t === "passwords") { sheet(false); return renderPasswords(); }
+  await renderStart();
+  if (tab() === "history") sheet(true);
+}
+
+/* ---------------- the history sheet: opens from the History button; ✕, a click outside it or Esc puts it away */
+function sheet(open) {
+  $("#sheet").classList.toggle("open", open);
+  $("#shade").classList.toggle("on", open);
+  if (open) renderHistory().then(() => $("#hq") && $("#hq").focus());
+}
+(() => {
+  $("#shade").onclick = $("#sheetClose").onclick = () => sheet(false);
+  $("#histBtn").onclick = () => { if (tab() === "passwords") location.hash = "history"; else sheet(!$("#sheet").classList.contains("open")); };
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#sheet").classList.contains("open")) { e.stopPropagation(); sheet(false); } });
+})();
+$("#tabs").onclick = (e) => { const b = e.target.closest("[data-t]"); if (b) location.hash = b.dataset.t; };
+addEventListener("hashchange", render);
+
+/* ---------------- start */
+async function renderStart() {
+  const d = await api("GET", "/api/browser/start");
+  const now = new Date(), last = d.recent[0], H = bhome();
+  // your bookmarks (☆ on the bar) are the start page's sites
+  d.top = (d.bookmarks || []).map((b) => ({ url: b.url, title: b.title || b.site, site: b.site, id: b.id }));
+  const day = esc(now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }));
+  const form = (place = "Search, or type an address") => `<form class="bw-search" id="sf"><span class="ic">⌕</span><input id="q" placeholder="${esc(place)}" autofocus autocomplete="off">
+      ${last ? `<button class="bw-again" type="button" id="again" title="Reopen the last page: ${esc(last.title || last.url)}"><img src="${esc(icon(last.url))}" alt="" onerror="this.replaceWith('↺')"><i>↺</i></button>` : ""}
+      <button class="bw-go" title="Search with DuckDuckGo (or go to the address)"><span class="bd">⌕</span><span class="lbl">Search</span></button>
+      <button class="bw-wiki" type="button" id="wiki" title="Look it up on Wikipedia"><span class="bd">W</span><span class="lbl">Wikipedia</span></button></form>`;
+  const ico = (u) => `<img src="${esc(icon(u))}" alt="" onerror="this.style.visibility='hidden'">`;
+  const none = `<p class="bw-note">No bookmarks yet. Press ☆ on the browser's bar while you're on a page and it shows up here.</p>`;
+  document.documentElement.dataset.home = H;
+  let html;
+  if (H === "minimal") {
+    // a big quiet search, the date above it, one neat row of small site icons below
+    html = `<div class="hm-min"><div class="bw-day">${day}</div>${form("Search or type an address")}
+      ${d.top.length ? `<div class="hm-minrow">${d.top.map((s) => `<a href="${esc(s.url)}" title="${esc(s.title || s.site)}">${ico(s.url)}<button class="bw-unpin" data-unpin="${s.id}" title="Remove this bookmark">✕</button></a>`).join("")}</div>` : none}</div>`;
+  } else if (H === "dash") {
+    // a clock and the search on the left; a speed dial and what you read lately on the right
+    const t = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    html = `<div class="hm-dash"><section class="hm-dl"><div class="hm-clock" id="hmClock">${esc(t)}</div><div class="bw-day">${day}</div>${form()}
+        ${last ? `<button class="hm-resume" type="button" id="again2"><small>Pick up where you left off</small><b>${esc(last.title || last.url)}</b></button>` : ""}</section>
+      <section class="hm-dr"><h2>Bookmarks</h2>${d.top.length ? `<div class="hm-dial">${d.top.map((s, i) => `<a class="hm-key" href="${esc(s.url)}"><span class="hm-n">${i + 1}</span>${ico(s.url)}<b>${esc(s.title || s.site)}</b><button class="bw-unpin" data-unpin="${s.id}" title="Remove this bookmark">✕</button></a>`).join("")}</div>` : none}
+        ${d.recent.length ? `<h2>Lately</h2><div class="hm-lately">${d.recent.slice(0, 5).map((h) => `<a href="${esc(h.url)}">${ico(h.url)}<span><b>${esc(h.title || h.url)}</b><small>${esc(h.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</small></span><time>${when(h.visited_at)}</time></a>`).join("")}</div>` : ""}</section></div>`;
+  } else if (H === "orbit") {
+    // a starfield: the search glows in the middle like a sun, your sites orbit it on two rings
+    const inner = d.top.slice(0, 4), outer = d.top.slice(4, 12);
+    const ring = (list, cls) => `<div class="hm-ring ${cls}">${list.map((s, i) => `<a class="hm-planet" href="${esc(s.url)}" style="--a:${(360 / list.length) * i}deg" title="${esc(s.site)}"><span>${ico(s.url)}</span><b>${esc(s.site)}</b><button class="bw-unpin" data-unpin="${s.id}" title="Remove this bookmark">✕</button></a>`).join("")}</div>`;
+    html = `<div class="hm-sky"><div class="hm-stars"></div>${ring(outer, "r2")}${ring(inner, "r1")}<div class="hm-sun"><div class="bw-day">${day}</div><h1>Where to?</h1>${form("Search the cosmos…")}</div></div>`;
+  } else if (H === "vend") {
+    // a vending machine: your sites are the snacks behind the glass, each in a lettered slot; the search is the keypad
+    const slot = (i) => "ABC"[Math.floor(i / 4)] + ((i % 4) + 1);
+    html = `<div class="hm-vend"><div class="hm-machine"><div class="hm-sign">SNAX &amp; SITES</div>
+        <div class="hm-glass">${d.top.length ? d.top.slice(0, 12).map((s, i) => `<a class="hm-item" href="${esc(s.url)}"><span class="hm-snack">${ico(s.url)}</span><b>${esc(s.site)}</b><i class="hm-coil"></i><em>${slot(i)}</em><button class="bw-unpin" data-unpin="${s.id}" title="Remove this bookmark">✕</button></a>`).join("") : none}</div>
+        <div class="hm-panel"><div class="hm-lcd">${day.toUpperCase()}<br>MAKE A SELECTION</div>${form("Type a code… or anything")}
+          ${last ? `<button class="hm-coin" type="button" id="again2" title="Reopen ${esc(last.title || last.url)}"><i></i>COIN RETURN · reopen last page</button>` : ""}</div>
+        <div class="hm-tray">PUSH</div></div></div>`;
+  } else {
+    html = `<div class="bw-hero"><div class="bw-day">${day}</div><h1>Where to?</h1>${form()}</div>
+      ${d.top.length ? `<div class="bw-tiles">${d.top.map((s) => `<a class="bw-tile" href="${esc(s.url)}" title="${esc(s.title)}"><span class="ring">${ico(s.url)}</span><b>${esc(s.title || s.site)}</b><button class="bw-unpin" data-unpin="${s.id}" title="Remove this bookmark">✕</button></a>`).join("")}</div>` : none}`;
+  }
+  $("#view").innerHTML = html;
+  if ($("#again2") && last) $("#again2").onclick = () => go(last.url);
+  // the vending machine takes slot codes: type "B2" and press Search to get that site
+  if (H === "vend") $("#sf").addEventListener("submit", (e) => { const m = /^\s*([abc])([1-4])\s*$/i.exec($("#q").value); if (m) { const s = d.top["abc".indexOf(m[1].toLowerCase()) * 4 + Number(m[2]) - 1]; if (s) { e.stopImmediatePropagation(); e.preventDefault(); go(s.url); } } }, true);
+  clearInterval(renderStart.clock);
+  if (H === "dash") renderStart.clock = setInterval(() => { const c = $("#hmClock"); if (c) c.textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }, 15000);
+  $("#sf").onsubmit = (e) => { e.preventDefault(); const v = $("#q").value.trim(); if (v) go(v); };
+  $("#wiki").onclick = () => { const v = $("#q").value.trim(); go(v || "https://en.wikipedia.org/", !!v); };
+  if (last) $("#again").onclick = () => go(last.url);
+}
+const row = (h) => `<div class="bw-row"><img src="${esc(icon(h.url))}" alt="" onerror="this.style.visibility='hidden'"><a href="${esc(h.url)}"><b>${esc(h.title || h.url)}</b><small>${esc(h.url)}</small></a><time>${when(h.visited_at)}</time>${h.id ? `<button class="x" data-del="${h.id}" title="Remove from history">✕</button>` : ""}</div>`;
+
+/* ---------------- history */
+let hq = "";
+async function renderHistory() {
+  const d = await api("GET", "/api/browser/history?" + new URLSearchParams({ q: hq, limit: 500 }));
+  let html = "", cur = "";
+  for (const h of d.items) {
+    const dd = day(h.visited_at);
+    if (dd !== cur) { html += `${cur ? "</div>" : ""}<h2>${esc(dd)}</h2><div class="bw-list">`; cur = dd; }
+    html += row(h);
+  }
+  if (cur) html += "</div>";
+  $("#hist").innerHTML = `<div class="bw-tools"><input type="search" id="hq" placeholder="Search history" value="${esc(hq)}">
+      <button class="btn" data-clear="3600">Clear the last hour</button><button class="btn" data-clear="today">Clear today</button><button class="btn danger" data-clear="all">Clear all history</button></div>
+    ${html || `<p class="bw-note">${hq ? "Nothing matches." : "No history yet."}</p>`}`;
+  $("#hq").oninput = (e) => { hq = e.target.value; clearTimeout(renderHistory.t); renderHistory.t = setTimeout(() => renderHistory().then(() => { const i = $("#hq"); i.focus(); i.setSelectionRange(hq.length, hq.length); }), 250); };
+}
+document.addEventListener("click", async (e) => {
+  const del = e.target.closest("[data-del]");
+  if (del) { await api("DELETE", "/api/browser/history", { ids: [Number(del.dataset.del)] }); del.closest(".bw-row").remove(); return; }
+  const c = e.target.closest("[data-clear]");
+  if (c) {
+    const v = c.dataset.clear, since = v === "all" ? 0 : v === "today" ? new Date().setHours(0, 0, 0, 0) / 1000 : Date.now() / 1000 - 3600;
+    if (v === "all" && !confirm("Clear all browsing history?")) return;
+    await api("DELETE", "/api/browser/history", { since });
+    renderHistory();
+    if (tab() !== "passwords") renderStart();
+  }
+});
+
+/* ---------------- passwords */
+let pq = "", editing = null;
+async function renderPasswords() {
+  const d = await api("GET", "/api/browser/logins?" + new URLSearchParams({ q: pq }));
+  $("#view").innerHTML = `
+    <p class="hint">Saved passwords are encrypted for your Windows account on this computer. When you sign in on a site in this window, it offers to save the password; press the 🔑 button on the bar to fill it in next time.</p>
+    <div class="bw-tools"><input type="search" id="pq" placeholder="Search sites and usernames" value="${esc(pq)}">
+      <button class="btn" id="add">＋ Add</button>
+      <label class="btn primary" title="A CSV export from Chrome, Edge, Firefox, Brave, Opera, Bitwarden, 1Password, LastPass or Proton Pass">Import passwords… <input type="file" id="imp" accept=".csv,text/csv" hidden></label></div>
+    <div id="editBox"></div><div id="impMsg"></div>
+    ${d.items.length ? `<div class="bw-list">${d.items.map((l) => `<div class="bw-row" data-id="${l.id}"><img src="${esc(icon("https://" + l.site))}" alt="" onerror="this.style.visibility='hidden'">
+      <a href="${esc(l.url || "https://" + l.site)}"><b>${esc(l.site)}</b><small>${esc(l.username || "(no username)")}</small></a>
+      <span class="bw-pw">••••••••</span><button class="btn sm" data-show="${l.id}">Show</button><button class="btn sm" data-copy="${l.id}">Copy</button>
+      <button class="btn sm" data-edit="${l.id}">Edit</button><button class="x" data-rm="${l.id}" title="Delete">✕</button></div>`).join("")}</div>`
+      : `<p class="bw-note">${pq ? "Nothing matches." : "No saved passwords yet. Import them from your old browser: in Chrome or Edge, open Settings → Passwords (Password Manager) → Settings → Export passwords; in Firefox, about:logins → ⋯ → Export Logins. Then choose the file with Import passwords…, and delete the exported file afterwards: it isn't encrypted."}</p>`}`;
+  $("#pq").oninput = (e) => { pq = e.target.value; clearTimeout(renderPasswords.t); renderPasswords.t = setTimeout(() => renderPasswords().then(() => { const i = $("#pq"); i.focus(); i.setSelectionRange(pq.length, pq.length); }), 250); };
+  $("#imp").onchange = importFile;
+  $("#add").onclick = () => editForm({});
+  d.items.forEach((l) => (l._row = true));
+  renderPasswords.items = d.items;
+}
+function editForm(l) {
+  editing = l;
+  $("#editBox").innerHTML = `<form class="bw-edit" id="ef">
+    <label>Website<input name="url" required value="${esc(l.url || (l.site ? "https://" + l.site : ""))}" placeholder="https://example.com"></label>
+    <label>Username<input name="username" value="${esc(l.username || "")}" autocomplete="off"></label>
+    <label>Password<input name="password" type="password" required value="${esc(l.password || "")}" autocomplete="new-password"></label>
+    <label>Note<input name="note" value="${esc(l.note || "")}"></label>
+    <div><button class="btn primary">Save</button> <button class="btn" type="button" id="ec">Cancel</button></div></form>`;
+  $("#ec").onclick = () => { $("#editBox").innerHTML = ""; };
+  $("#ef").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try { await api("POST", "/api/browser/logins", { id: l.id, url: f.url.value, username: f.username.value, password: f.password.value, note: f.note.value }); renderPasswords(); }
+    catch (err) { alert(err.message); }
+  };
+}
+async function importFile(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  $("#impMsg").innerHTML = `<p class="bw-note">Importing…</p>`;
+  try {
+    const r = await api("POST", "/api/browser/import", { csv: await f.text() });
+    await renderPasswords();
+    $("#impMsg").innerHTML = `<p class="bw-note">Imported: ${r.added} new, ${r.updated} updated${r.skipped ? `, ${r.skipped} skipped (already saved, or no site/password)` : ""}. You can delete the exported file now: it isn't encrypted.</p>`;
+  } catch (err) { $("#impMsg").innerHTML = `<p class="bw-note">${esc(err.message)}</p>`; }
+}
+document.addEventListener("click", async (e) => {
+  const s = e.target.closest("[data-show]");
+  if (s) {
+    const span = s.parentElement.querySelector(".bw-pw");
+    if (s.textContent === "Hide") { span.textContent = "••••••••"; s.textContent = "Show"; return; }
+    span.textContent = (await api("GET", `/api/browser/logins/${s.dataset.show}/password`)).password; s.textContent = "Hide"; return;
+  }
+  const c = e.target.closest("[data-copy]");
+  if (c) { await navigator.clipboard.writeText((await api("GET", `/api/browser/logins/${c.dataset.copy}/password`)).password); c.textContent = "Copied"; setTimeout(() => (c.textContent = "Copy"), 1500); return; }
+  const ed = e.target.closest("[data-edit]");
+  if (ed) { const l = renderPasswords.items.find((x) => x.id === Number(ed.dataset.edit)); l.password = (await api("GET", `/api/browser/logins/${l.id}/password`)).password; editForm(l); scrollTo(0, 0); return; }
+  const rm = e.target.closest("[data-rm]");
+  if (rm && confirm("Delete this saved password?")) { await api("DELETE", `/api/browser/logins/${rm.dataset.rm}`); renderPasswords(); }
+});
+render().catch((e) => { $("#view").innerHTML = `<p class="bw-note">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>

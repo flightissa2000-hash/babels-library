@@ -1,0 +1,103 @@
+/* The app's themes (Settings → Look). Original art & palettes inspired by the named works — no game or film assets used. */
+
+:root{
+  --radius-sm:6px;--radius-lg:14px;
+  --hl-yellow:#ffe36e;--hl-green:#9be58d;--hl-blue:#8cc8ff;--hl-pink:#ff9ccf;
+  --brand-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M9 12h14l3 16H6zM12 4h8v8h-8z'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------------------------------------
+   WORD TOWN — inspired by Noun Town
+   sunny storybook town, every object wears its word
+---------------------------------------------------------------- */
+[data-theme=wordtown]{
+  --bg:#bfe7ff;--surface:#ffffff;--ink:#22304a;--ink-soft:#5b6b86;--line:#22304a;
+  --accent:#ff6b4a;--accent-ink:#fff;--accent2:#ffc93c;--ok:#36b37e;--hover:rgba(34,48,74,.08);
+  --font-display:"Fredoka",sans-serif;--font-body:"Nunito",sans-serif;--font-ui:"Nunito",sans-serif;--display-weight:700;
+  --texture:radial-gradient(circle at 12% 18%,#fff 0 40px,transparent 41px),radial-gradient(circle at 15% 16%,#fff 0 30px,transparent 31px),radial-gradient(circle at 82% 10%,#fff 0 46px,transparent 47px),linear-gradient(#bfe7ff 0 70%,#a6e08f 70%);
+  --radius-sm:12px;--radius-lg:24px;--radius-cover:10px;
+  --bar-bg:#fff;--bar-border:3px solid #22304a;--bar-shadow:0 4px 0 #22304a;
+  --field-bg:#fff;--field-border:2.5px solid #22304a;
+  --btn-border:2.5px solid #22304a;--btn-shadow:0 4px 0 #22304a;
+  --tag-bg:#ffc93c;--tag-ink:#22304a;--tag-border:2px solid #22304a;
+  --shelf-back:#fff3d6;--plank:16px solid #c97b3a;--plank-c:#c97b3a;--plank-h:16px;--plank-shadow:0 6px 0 #22304a;
+  --spine-radius:8px 8px 2px 2px;--spine-shadow:inset 0 0 0 3px #22304a;--spine-pattern:none;
+  --cover-shadow:0 0 0 3px #22304a,0 6px 0 #22304a;--cover-pattern:radial-gradient(circle,rgba(255,255,255,.25) 0 4px,transparent 5px) 0 0/22px 22px;
+  --town-ground:#8fd17a;
+  --district-bg:#c7ec9e;--district-border:4px solid #22304a;
+  --sign-bg:#fff;--sign-ink:#22304a;--sign-shadow:0 4px 0 #22304a;
+  --window:#bfe7ff;--door:#22304a;--label-bg:#fff;--label-border:2.5px solid #22304a;
+  --stage-bg:#fff;--hrow-bg:#fff;--hrow-sel:#ff6b4a;
+  --burst:repeating-conic-gradient(from 0deg,#ffc93c 0 10deg,#fff3d6 10deg 20deg);
+  --toast-bg:#22304a;--toast-ink:#fff;
+  --dlg-border:4px solid #22304a;--drawer-border:4px solid #22304a;
+  --brand-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 5h24a2 2 0 012 2v14a2 2 0 01-2 2H14l-7 6v-6H4a2 2 0 01-2-2V7a2 2 0 012-2z'/%3E%3C/svg%3E");
+}
+[data-theme=wordtown] .heist-row{border:3px solid #22304a}
+[data-theme=wordtown] .group-head h2{background:#fff;border:3px solid #22304a;padding:2px 16px;border-radius:999px;box-shadow:0 4px 0 #22304a}
+
+/* ---------------------------------------------------------------
+   GRUVBOX — the retro groove colour scheme
+   warm dark editor: soft cream text, orange and yellow highlights
+---------------------------------------------------------------- */
+[data-theme=gruvbox]{
+  --bg:#282828;--surface:#32302f;--ink:#ebdbb2;--ink-soft:#a89984;--line:#504945;
+  --accent:#fe8019;--accent-ink:#1d2021;--accent2:#fabd2f;--ok:#b8bb26;--danger:#fb4934;--hover:rgba(235,219,178,.07);
+  --font-display:"IBM Plex Mono",monospace;--font-body:"Nunito",sans-serif;--font-ui:"IBM Plex Mono",monospace;--display-weight:600;--display-track:-.01em;
+  --texture:radial-gradient(ellipse at 90% -10%,rgba(250,189,47,.08),transparent 45%),radial-gradient(ellipse at -10% 110%,rgba(131,165,152,.08),transparent 50%),
+    linear-gradient(rgba(235,219,178,.03) 1px,transparent 1px),linear-gradient(#282828,#1d2021);
+  --texture-size:auto,auto,100% 26px,auto;
+  --radius-sm:4px;--radius-lg:8px;--radius-cover:3px;
+  --bar-bg:#1d2021;--bar-ink:#ebdbb2;--bar-border:1px solid #504945;--bar-shadow:none;
+  --field-bg:#1d2021;--field-border:1px solid #665c54;
+  --btn-bg:#3c3836;--btn-ink:#ebdbb2;--btn-border:1px solid #665c54;--btn-shadow:0 2px 0 #1d2021;
+  --tag-bg:#3c3836;--tag-ink:#fabd2f;--tag-border:1px solid #504945;--radius-tag:3px;
+  --shelf-back:#32302f;--plank:10px solid #504945;--plank-c:#504945;--plank-h:10px;--plank-shadow:0 4px 0 #1d2021;
+  --spine-radius:3px 3px 1px 1px;--spine-shadow:inset 0 0 0 1px rgba(0,0,0,.35);--spine-pattern:none;
+  --cover-shadow:0 0 0 1px #504945,0 8px 22px rgba(0,0,0,.55);--cover-pattern:linear-gradient(transparent 70%,rgba(0,0,0,.25));
+  --town-ground:#1d2021;--district-bg:#32302f;--district-border:1px solid #504945;
+  --sign-bg:#3c3836;--sign-ink:#fabd2f;--sign-shadow:none;
+  --window:#83a598;--door:#1d2021;--label-bg:#1d2021;--label-border:1px solid #665c54;
+  --stage-bg:#32302f;--stage-ink:#ebdbb2;--hrow-bg:#32302f;--hrow-sel:#fe8019;--hrow-sel-ink:#1d2021;
+  --burst:repeating-linear-gradient(135deg,rgba(250,189,47,.35) 0 2px,transparent 2px 14px);
+  --toast-bg:#fabd2f;--toast-ink:#1d2021;
+  --dlg-border:1px solid #665c54;--drawer-border:1px solid #665c54;
+  --hl-yellow:#d79921;--hl-green:#98971a;--hl-blue:#458588;--hl-pink:#b16286;
+  --reader-bg:#1d2021;
+  --brand-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill-rule='evenodd' d='M3 5h26v22H3zM7 11l5 4-5 4 1.5 1.5L15 15l-6.5-5.5zM16 19h8v2h-8z'/%3E%3C/svg%3E");
+  color-scheme:dark;
+}
+[data-theme=gruvbox] .group-head h2{color:#fabd2f}
+[data-theme=gruvbox] .group-head h2::before{content:"# ";color:#fe8019}
+[data-theme=gruvbox] .heist-row{border:1px solid #504945;border-radius:4px}
+[data-theme=gruvbox] .heist-group .hg-name{--hg-bg:#3c3836;--hg-ink:#fabd2f}
+[data-theme=gruvbox] .heist-group:nth-of-type(3n+2) .hg-name{background:#458588;color:#ebdbb2}
+[data-theme=gruvbox] .heist-group .hg-count{box-shadow:0 0 0 1px #1d2021}
+[data-theme=gruvbox] .plaque{--plaque-bg:#3c3836;--plaque-ink:#fabd2f;box-shadow:0 0 0 1px #665c54}
+
+/* the browser, theme by theme */
+[data-theme=wordtown] .ib-bar{padding:10px 16px;border-bottom:3px solid #22304a;box-shadow:0 4px 0 #22304a}
+[data-theme=wordtown] .ib-btn{border-radius:50%;width:40px;height:40px;background:#ffc93c;color:#22304a}
+[data-theme=wordtown] .ib-btn:nth-of-type(2){background:#8fd17a}[data-theme=wordtown] .ib-btn:nth-of-type(3){background:#4aa8ff;color:#fff}
+[data-theme=wordtown] .ib-btn:nth-of-type(4){background:#ff8fc0}
+[data-theme=wordtown] .ib-addr{height:46px;border:3px solid #22304a;box-shadow:inset 0 3px 0 rgba(34,48,74,.08)}
+[data-theme=wordtown] .ib-addr input{font-family:"Fredoka",sans-serif;font-size:1.05rem}
+[data-theme=wordtown] .ib-w{border:2.5px solid #22304a;background:#fff3d6}
+[data-theme=wordtown] .ib-close{background:#ff6b4a;color:#fff}
+[data-theme=wordtown] .ib-load{height:5px;background:#fff}
+[data-theme=wordtown] .ib-load i{background:repeating-linear-gradient(90deg,#ff6b4a 0 14px,#ffc93c 14px 28px)}
+[data-theme=gruvbox] .ib-bar{gap:4px;padding:6px 10px;background:#1d2021;border-bottom:1px solid #504945}
+[data-theme=gruvbox] .ib-btn{width:34px;height:34px;border-radius:3px;background:#282828;color:#a89984;box-shadow:none;border-color:#3c3836}
+[data-theme=gruvbox] .ib-btn:hover:not(:disabled){color:#fabd2f;background:#3c3836;transform:none}
+[data-theme=gruvbox] .ib-addr{height:34px;border-radius:3px;background:#282828;border:1px solid #504945;padding-left:10px}
+[data-theme=gruvbox] .ib-addr:focus-within{border-color:#fabd2f;box-shadow:none}
+[data-theme=gruvbox] .ib-mark{color:#b8bb26}
+[data-theme=gruvbox] .ib-mark::before{content:"$ ";color:#fe8019}
+[data-theme=gruvbox] .ib-addr input{font:400 .95rem "IBM Plex Mono",monospace;color:#ebdbb2}
+[data-theme=gruvbox] .ib-w{border-radius:3px;width:30px;height:26px;background:#3c3836;color:#83a598;border:0}
+[data-theme=gruvbox] .ib-key.lit{background:#fabd2f;color:#1d2021}
+[data-theme=gruvbox] .ib-close:hover:not(:disabled){color:#fb4934}
+[data-theme=gruvbox] .ib-load{height:2px}
+[data-theme=gruvbox] .ib-load i{background:#fabd2f}
+[data-theme=gruvbox] .ib-strip{background:#32302f;border-bottom:1px solid #504945;font-family:"IBM Plex Mono",monospace;font-size:.9rem}
+[data-theme=gruvbox] .ib-mark{font-size:0}[data-theme=gruvbox] .ib-mark::before{font-size:.95rem}
