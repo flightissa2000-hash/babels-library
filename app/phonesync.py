@@ -79,7 +79,49 @@ def new_code():
         for c in [c for c, t in _codes.items() if t < now]:
             _codes.pop(c, None)
         _codes[code] = now + 600
+    threading.Thread(target=_post_pair_address, args=(code,), daemon=True).start()
     return code
+
+
+def pair_topic(code):
+    """Where an iPhone finds this computer from the pairing code alone (the iPhone app lives on the web, so it can't
+    look around the Wi-Fi; it reaches the computer through the away-from-home address instead). The topic only says
+    where to knock: pairing still needs the code itself, which is good for ten minutes."""
+    return "babel-pair-" + hashlib.sha256(("babel-pair:" + str(code)).encode()).hexdigest()[:24]
+
+
+def _post_pair_address(code):
+    for _ in range(30):                  # (the away-from-home address may still be starting)
+        if _tunnel["url"]:
+            break
+        time.sleep(2)
+    if not _tunnel["url"]:
+        return
+    try:
+        urllib.request.urlopen(urllib.request.Request("https://ntfy.sh/" + pair_topic(code), data=_tunnel["url"].encode(),
+                                                      headers={"User-Agent": "BabelsLibrary", "Cache": "yes"}), timeout=20).read()
+    except Exception as e:
+        print("[inkwell] couldn't post the pairing address:", e)
+
+
+# ---------------------------------------------------------------- notifications for the iPhone app (Web Push)
+def push_news(items):
+    """New events on the Local desk: a notification on each iPhone that asked for them."""
+    devs = [d for d in devices() if d.get("push")]
+    if not devs or not items:
+        return
+    import webpush
+    one = items[0]
+    msg = {"kind": "news", "title": "New event: " + one["title"] if len(items) == 1 else f"{len(items)} new events in the News",
+           "body": (one.get("source") or "") if len(items) == 1 else "; ".join(i["title"] for i in items[:3]),
+           "items": [{k: i.get(k) for k in ("title", "link", "source", "date")} for i in items[:8]]}
+    for d in devs:
+        try:
+            code = webpush.send(d["push"], msg)
+            if code in (404, 410):                 # the iPhone unsubscribed (or the app was removed)
+                _touch(d, push=None)
+        except Exception as e:
+            print(f"[inkwell] couldn't notify {d.get('name')}: {e}")
 
 
 def _take_code(code):
@@ -436,6 +478,17 @@ def _make_handler():
                     if method == "DELETE":
                         return self._send(200, upload_cancel(q.get("u", "")))
                     return self._send(200, upload_chunk(self, dev, q.get("u", ""), q.get("name", ""), int(q.get("offset") or 0), int(q.get("total") or 0)))
+                if path == "/sync/push/key":
+                    import webpush
+                    return self._send(200, {"key": webpush.public_key()})
+                if path == "/sync/push/subscribe" and method == "POST":
+                    sub = self.json_body().get("sub")
+                    if sub and not (isinstance(sub, dict) and str(sub.get("endpoint", "")).startswith("https://") and (sub.get("keys") or {}).get("p256dh")):
+                        raise ValueError("That isn't a push subscription.")
+                    _touch(dev, push=sub or None)
+                    if sub:
+                        store.set_settings({"news_alerts": True})       # (the computer's watcher is what finds the events)
+                    return self._send(200, {"ok": True, "on": bool(sub)})
                 if path == "/sync/adblock":
                     return self._send(200, _adblock_pack(), "application/gzip")
                 if path == "/sync/bookmarks":
@@ -512,11 +565,19 @@ def _make_handler():
                 traceback.print_exc()
                 return self._send(500, {"error": str(e)})
 
+        def end_headers(self):
+            # every answer can be read by the iPhone app (a page on another site), including a file's size and range
+            sent = b"".join(getattr(self, "_headers_buffer", [])).lower()
+            if b"access-control-allow-origin" not in sent:
+                self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, X-File-Size")
+            super().end_headers()
+
         def do_OPTIONS(self):
             self.send_response(204)
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, Range")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+            self.send_header("Access-Control-Max-Age", "86400")
             self.send_header("Content-Length", "0")
             self.end_headers()
 

@@ -1131,8 +1131,10 @@ function paintPhone(p, code) {
   const seen = (t) => (t ? ago(t) : "never");
   $("#phoneBox").innerHTML = `
     <div class="ph-pair">${code ? `<div class="ph-code" title="Type this in the phone app (valid for 10 minutes)">${code.replace(/(\d{3})(\d{3})/, "$1 $2")}</div>
-      <div class="hint">Computer address on your Wi-Fi: <b>${esc((p.addresses || [])[0] || "unknown")}</b> (the app usually finds it by itself). Valid for 10 minutes.</div>`
+      <div class="hint">Computer address on your Wi-Fi: <b>${esc((p.addresses || [])[0] || "unknown")}</b> (the app usually finds it by itself). Valid for 10 minutes.</div>
+      <div class="hint">iPhone or iPad: type the same code in the web app. ${p.remote && p.remote_url ? `It finds this computer by itself (if not, its away-from-home address is <b>${esc(p.remote_url)}</b>).` : "<b>Switch on “Reach this library from anywhere” first</b>: the iPhone app reaches the computer that way."}</div>`
       : `<button class="btn primary" type="button" id="phonePair">Pair a phone…</button>`}</div>
+    <p class="hint">On an iPhone or iPad, open <b>flightissa2000-hash.github.io/babels-library-web</b> in Safari, tap Share → <b>Add to Home Screen</b>, then open it from the Home Screen and pair it there.</p>
     ${(p.devices || []).length ? `<ul class="ph-devs">${p.devices.map((d) => `<li><b>📱 ${esc(d.name)}</b><span class="hint">last synced ${esc(seen(d.last_seen))}${d.queued ? ` · ${d.queued} file${d.queued === 1 ? "" : "s"} waiting to send` : ""}</span>
       <button class="btn sm" type="button" data-phone-forget="${esc(d.id)}">Unpair</button></li>`).join("")}</ul>` : `<p class="hint">No phones paired yet.</p>`}`;
   $("#phoneRemote").checked = !!p.remote;

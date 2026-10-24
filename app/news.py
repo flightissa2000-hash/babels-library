@@ -344,6 +344,8 @@ def start_watching():
                     n = check_events()
                     if n:
                         print(f"[inkwell] {len(n)} new event(s) on the Local desk")
+                        import phonesync
+                        phonesync.push_news(alerts_since(time.time() - 120))    # (the iPhones that asked; Android phones look for themselves)
             except Exception as e:
                 print("[inkwell] event check skipped:", e)
             time.sleep(15 * 60)
