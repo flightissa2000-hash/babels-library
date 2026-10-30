@@ -2063,6 +2063,58 @@ def _article_intro(title):
     return out
 
 
+# ---- the readers' dictionary: a word's meanings from Wiktionary (kept once looked up)
+_dict = {}
+
+
+def _define(word):
+    word = re.sub(r"^[^\w]+|[^\w]+$", "", (word or "").strip())[:60]
+    if not word:
+        raise ValueError("Select a word first.")
+    if word.lower() in _dict:
+        return _dict[word.lower()]
+    strip = lambda s: re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", s or ""))).strip()
+    out = {"word": word, "senses": [], "url": "https://en.wiktionary.org/wiki/" + urllib.parse.quote(word.replace(" ", "_"))}
+    for w in dict.fromkeys([word.lower(), word, word.capitalize()]):        # (a sentence's first word: its everyday meaning first)
+        req = urllib.request.Request("https://en.wiktionary.org/api/rest_v1/page/definition/" + urllib.parse.quote(w.replace(" ", "_")),
+                                     headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
+        try:
+            data = json.loads(urllib.request.urlopen(req, timeout=12).read())
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                continue
+            raise
+        for sec in (data.get("en") or [])[:4]:
+            defs = []
+            for d in sec.get("definitions") or []:
+                t = strip(d.get("definition"))
+                if t:
+                    exs = [x.get("example") for x in d.get("parsedExamples") or []] or d.get("examples") or []
+                    ex = next((strip(x) for x in exs if strip(x)), "")
+                    defs.append({"d": t[:400], "ex": ex[:240]})
+                if len(defs) >= 4:
+                    break
+            if defs:
+                out["senses"].append({"pos": sec.get("partOfSpeech") or "", "defs": defs})
+        if any(s["pos"] != "Symbol" for s in out["senses"]):          # (language codes and the like, only if there's nothing else)
+            out["senses"] = [s for s in out["senses"] if s["pos"] != "Symbol"]
+        if out["senses"]:
+            out["word"], out["url"] = w, "https://en.wiktionary.org/wiki/" + urllib.parse.quote(w.replace(" ", "_"))
+            break
+    if len(_dict) > 2000:
+        _dict.clear()
+    _dict[word.lower()] = out
+    return out
+
+
+@route("GET", r"/api/define")
+def r_define(h):
+    try:
+        h._send(200, _define(h.query.get("w", "")))
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ValueError(f"Couldn't reach Wiktionary ({e}).")
+
+
 @route("GET", r"/api/potd")
 def r_potd(h):
     day = time.strftime("%Y/%m/%d")

@@ -1552,6 +1552,44 @@
     if (wantsNote) $(`.note[data-id="${a.id}"] .n-title`)?.focus();
   }
 
+  /* ---------- the dictionary: the selected word's meanings, in a card by the text ---------- */
+  async function define() {
+    const p = R.pending, card = $("#dictCard");
+    if (!p) return;
+    R.pendingDict = p;          // (the card's "Highlight it" uses the same selection)
+    const word = p.quote.trim().split(/\s+/).slice(0, 3).join(" ");
+    // (by the word itself: its place in the book's page, or failing that where the colours came up)
+    let at = $("#selPop").getBoundingClientRect();
+    try {
+      const win = p.contents ? p.contents.window : window, rr = win.getSelection().getRangeAt(0).getBoundingClientRect();
+      const fr = win.frameElement ? win.frameElement.getBoundingClientRect() : { left: 0, top: 0 };
+      if (rr.width) at = { left: fr.left + rr.left, width: rr.width, bottom: fr.top + rr.bottom, top: fr.top + rr.top };
+    } catch (err) {}
+    hidePop();
+    card.hidden = false;
+    card.style.left = Math.max(10, Math.min(innerWidth - 400, at.left + at.width / 2 - 190)) + "px";
+    card.style.top = (at.bottom + 320 < innerHeight ? at.bottom + 8 : Math.max(10, at.top - 330)) + "px";
+    card.innerHTML = `<header><b>${esc(word)}</b><button class="icon-btn" data-dict-x aria-label="Close">✕</button></header><p class="hint">Looking it up…</p>`;
+    let d;
+    try { d = await api.get(`/api/define?w=${encodeURIComponent(word)}`); }
+    catch (err) { card.querySelector(".hint").textContent = err.message; return; }
+    card.innerHTML = `<header><b>${esc(d.word)}</b><button class="icon-btn" data-dict-x aria-label="Close">✕</button></header>
+      <div class="dict-body">${d.senses.length ? d.senses.map((s) => `<section><em>${esc(s.pos)}</em><ol>${s.defs.map((x) => `<li>${esc(x.d)}${x.ex ? `<q>${esc(x.ex)}</q>` : ""}</li>`).join("")}</ol></section>`).join("")
+        : `<p class="hint">No definition found for “${esc(d.word)}”.</p>`}</div>
+      <footer><button class="btn sm" data-dict-more="${esc(d.url)}">More on Wiktionary ↗</button>
+        <button class="btn sm" data-dict-hl>Highlight it</button></footer>`;
+    card.dataset.word = d.word;
+  }
+  document.addEventListener("click", (e) => {
+    const card = $("#dictCard");
+    if (!card || card.hidden) return;
+    const more = e.target.closest("[data-dict-more]");
+    if (more) { card.hidden = true; return window.Browser ? Browser.open(more.dataset.dictMore) : window.open(more.dataset.dictMore); }
+    if (e.target.closest("[data-dict-hl]")) { card.hidden = true; R.pending = R.pendingDict; return createFromPending("yellow"); }
+    if (e.target.closest("[data-dict-x]") || !card.contains(e.target)) card.hidden = true;
+  }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#dictCard").hidden) { e.stopPropagation(); $("#dictCard").hidden = true; } }, true);
+
   /* ---------- notes panel ---------- */
   function sortAnns() {
     return [...R.anns].sort((a, b) => {
@@ -1822,7 +1860,12 @@
     doc().addEventListener("mousedown", (e) => { if (!e.target.closest("#selPop")) hidePop(); });
     const pop = $("#selPop");
     pop.addEventListener("mousedown", (e) => e.preventDefault());
-    pop.addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) createFromPending(b.dataset.color); });
+    pop.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      if (b.hasAttribute("data-define")) return define();
+      createFromPending(b.dataset.color);
+    });
 
     const list = $("#notesList");
     list.addEventListener("input", (e) => {

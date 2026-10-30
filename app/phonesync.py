@@ -632,6 +632,11 @@ def _make_handler():
                         if meth == method and mm:
                             return fn(self, *mm.groups())
                     return self._send(404, {"error": "not found"})
+                if path == "/sync/define" and method == "GET":      # the readers' dictionary
+                    for meth, rx, fn in server.ROUTES:
+                        if meth == "GET" and rx.match("/api/define"):
+                            return fn(self)
+                    return self._send(404, {"error": "not found"})
                 if path == "/sync/potd" and method == "GET":        # the Bulletin's photo of the day
                     for meth, rx, fn in server.ROUTES:
                         if meth == "GET" and rx.match("/api/potd"):
