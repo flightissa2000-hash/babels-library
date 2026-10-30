@@ -581,7 +581,13 @@ const Journal = (() => {
     }
     m.classList.remove("closing");
     fit();
-   requestAnimationFrame(() => { m.classList.add("open"); dispatchEvent(new Event("journal-moved")); });
+   requestAnimationFrame(() => { m.classList.add("open"); follow(book && book.classList.contains("opening") ? 1600 : 500); });
+  }
+  // while it moves into place (and its cover swings open), a website open in the browser keeps its hole around it
+  function follow(ms) {
+    const until = performance.now() + ms;
+    const step = () => { dispatchEvent(new Event("journal-moved")); if (performance.now() < until) requestAnimationFrame(step); };
+    step();
   }
   function closeModal() {
     const m = $("#jbModal");

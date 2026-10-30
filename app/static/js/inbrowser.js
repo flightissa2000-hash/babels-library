@@ -63,9 +63,12 @@ const Browser = (() => {
   const covered = () => !!document.querySelector("dialog[open], .dv.open, #nwModal.open, .jb-snip, #jbPreview.open, .drawer.open, .jb-pv.open, .dvi.open, #inBrowser[data-blayout=orb] .ib-bar.fan") || ($("#reader") && !$("#reader").hidden);
   // the floating journal (and its bookmark) aren't covered by the website: the site view is cut around them and keeps going
   // (so is the Orb layout's orb, its fan of controls and its address bubble, which float over the website)
-  const cuts = () => [...document.querySelectorAll("#jbModal.open .jb-book, #jbModal.open .jb-tab, #jbModal.open .jb-tuck, #jbModal.open .jb-grip, #jbModal.open .jb-grab, #jbModal.open .jb-polbig, #jbPull:not(.out)"
+  // (a piece still fading in, like the tabs and the move handle while the cover swings open, isn't cut out yet: the
+  // hole would show an empty patch of the app; the cover itself is, so it isn't hidden behind the website as it swings)
+  const seen = (el) => { let o = 1; for (let e = el; e && e !== document.body; e = e.parentElement) o *= Number(getComputedStyle(e).opacity); return o > 0.1; };
+  const cuts = () => [...document.querySelectorAll("#jbModal.open .jb-book, #jbModal.open .jb-tab, #jbModal.open .jb-tuck, #jbModal.open .jb-grip, #jbModal.open .jb-grab, #jbModal.open .jb-polbig, #jbModal.open .jb-lid, #jbPull:not(.out)"
       + ", #inBrowser[data-blayout=orb] .ib-orb")]
-    .filter((el) => getComputedStyle(el).visibility !== "hidden" && getComputedStyle(el).display !== "none")
+    .filter((el) => getComputedStyle(el).visibility !== "hidden" && getComputedStyle(el).display !== "none" && seen(el))
     .map((el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
   let movedRaf = 0;
   addEventListener("journal-moved", () => { if (B.on && !movedRaf) movedRaf = requestAnimationFrame(() => { movedRaf = 0; place(); }); });
