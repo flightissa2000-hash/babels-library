@@ -982,6 +982,8 @@ def r_profile_edit(h, pid):
 def r_profile_delete(h, pid):
     pid = int(pid)
     journal.delete_profile(pid)
+    import browser
+    browser.delete_profile(pid)          # (its bookmarks)
     store.delete_profile(pid)
     allb = dict(store.get_settings().get("bulletin") or {})
     if allb.pop(str(pid), None) is not None:          # (its Bulletin goes with it)

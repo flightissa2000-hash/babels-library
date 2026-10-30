@@ -215,7 +215,15 @@ def pull(since):
     return {"now": now, "full": since <= 0, "items": out, "annotations": anns, "deleted": deleted,
             "collections": store.list_collections(), "log": [dict(r) for r in log], "journal": entries,
             "profiles": store.list_profiles(), "profile": pid,
-            "bulletin": (store.get_settings().get("bulletin") or {}).get(str(pid)) or {}}
+            "bulletin": (store.get_settings().get("bulletin") or {}).get(str(pid)) or {}, "bookmarks": _bookmarks()}
+
+
+def _bookmarks():
+    try:
+        import browser
+        return browser.bookmarks()       # (this profile's)
+    except Exception:
+        return None
 
 
 def push_journal(jops, skew):

@@ -37,8 +37,18 @@ def db():
                     secret BLOB, note TEXT DEFAULT '', created_at REAL, updated_at REAL, used_at REAL);
                 CREATE INDEX IF NOT EXISTS idx_login_site ON logins(site);
                 CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY, value TEXT);
-                CREATE TABLE IF NOT EXISTS bookmarks (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL UNIQUE, title TEXT, added_at REAL);
+                CREATE TABLE IF NOT EXISTS bookmarks (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, title TEXT, added_at REAL,
+                    profile INTEGER NOT NULL DEFAULT 1, UNIQUE(profile, url));
             """)
+            # bookmarks made before profiles: the first profile's (the table is rebuilt: a url may now be in several profiles)
+            if "profile" not in [r[1] for r in _db.execute("PRAGMA table_info(bookmarks)")]:
+                _db.executescript("""
+                    CREATE TABLE bookmarks_new (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, title TEXT, added_at REAL,
+                        profile INTEGER NOT NULL DEFAULT 1, UNIQUE(profile, url));
+                    INSERT INTO bookmarks_new (id, url, title, added_at, profile) SELECT id, url, title, added_at, 1 FROM bookmarks;
+                    DROP TABLE bookmarks;
+                    ALTER TABLE bookmarks_new RENAME TO bookmarks;
+                """)
             _db.commit()
         return _db
 
@@ -162,29 +172,41 @@ def top_sites(n=8):
 
 
 # ---------------------------------------------------------------- bookmarks (☆ on the bar; shown on the start page)
+# each profile has its own: a phone's request is for its profile, anything else (the in-app browser) for this computer's
+def _pid():
+    import store
+    return store.profile() or store.desktop_profile()
+
+
 def bookmarks():
-    return [dict(r) | {"site": site_of(r["url"])} for r in db().execute("SELECT id, url, title, added_at FROM bookmarks ORDER BY added_at")]
+    return [dict(r) | {"site": site_of(r["url"])} for r in db().execute("SELECT id, url, title, added_at FROM bookmarks WHERE profile=? ORDER BY added_at", (_pid(),))]
 
 
 def is_bookmarked(url):
-    return bool(url) and db().execute("SELECT 1 FROM bookmarks WHERE url=?", (url,)).fetchone() is not None
+    return bool(url) and db().execute("SELECT 1 FROM bookmarks WHERE url=? AND profile=?", (url, _pid())).fetchone() is not None
 
 
 def add_bookmark(url, title=""):
     if not url or not re.match(r"^https?://", url):
         return
     with _lock:
-        db().execute("INSERT INTO bookmarks (url, title, added_at) VALUES (?,?,?) ON CONFLICT(url) DO UPDATE SET title=COALESCE(NULLIF(excluded.title, ''), title)",
-                     (url, (title or "")[:300], time.time()))
+        db().execute("INSERT INTO bookmarks (url, title, added_at, profile) VALUES (?,?,?,?) ON CONFLICT(profile, url) DO UPDATE SET title=COALESCE(NULLIF(excluded.title, ''), title)",
+                     (url, (title or "")[:300], time.time(), _pid()))
         db().commit()
 
 
 def remove_bookmark(url=None, bid=None):
     with _lock:
         if bid is not None:
-            db().execute("DELETE FROM bookmarks WHERE id=?", (int(bid),))
+            db().execute("DELETE FROM bookmarks WHERE id=? AND profile=?", (int(bid), _pid()))
         else:
-            db().execute("DELETE FROM bookmarks WHERE url=?", (url,))
+            db().execute("DELETE FROM bookmarks WHERE url=? AND profile=?", (url, _pid()))
+        db().commit()
+
+
+def delete_profile(pid):
+    with _lock:
+        db().execute("DELETE FROM bookmarks WHERE profile=?", (int(pid),))
         db().commit()
 
 
