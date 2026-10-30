@@ -2636,3 +2636,30 @@ body.ib-on .drawer{z-index:45}
 .jx-grille{height:48px;margin-top:16px;border-radius:10px;background:repeating-linear-gradient(90deg,#c99a3b 0 5px,#3a180a 5px 13px)}
 #plRep.on{color:var(--accent,#e0a030)}
 @media (prefers-reduced-motion:reduce){.jx-rec.spin,.jx-neon{animation:none}}
+
+/* the Bulletin's dailies: Wikipedia's featured article (an encyclopedia page) and Wikiquote's quote of the day */
+.btm-tfa{background:repeating-linear-gradient(0deg,rgba(90,60,20,.05) 0 1px,transparent 1px 30px),#f3ead6;color:#2a2116}
+.btm-tfa header h3{font-family:"Libre Baskerville",Georgia,serif;font-weight:700;text-transform:none;letter-spacing:-.01em}
+.btm-tfa-page{max-width:900px;font:400 1.02rem/1.65 "Libre Baskerville",Georgia,serif}
+.btm-tfa-page::after{content:"";display:block;clear:both}
+.btm-tfa-page img{float:right;width:min(260px,40%);margin:0 0 14px 22px;border:1px solid #c8b896;padding:4px;background:#fff;box-shadow:0 6px 18px rgba(60,40,10,.18)}
+.btm-tfa-page h4{margin:0;font:700 1.9rem/1.15 "Libre Baskerville",Georgia,serif;border-bottom:1px solid #a89770;padding-bottom:6px}
+.btm-tfa-page em{display:block;margin:6px 0 12px;opacity:.7}
+.btm-tfa-page p::first-letter{float:left;font-size:3.4em;line-height:.85;padding:4px 8px 0 0;font-weight:700;color:#7a2c12}
+.btm-tfa-page .btn{margin-top:6px}
+.btm-qotd{background:radial-gradient(ellipse at 20% 0,rgba(255,200,120,.12),transparent 60%),#16131f;color:#f2eadb;padding-bottom:50px}
+.btm-qotd header h3{color:#ffd9a0}
+.btm-q{position:relative;margin:0;max-width:900px;padding:10px 0 0 70px}
+.btm-q::before{content:"“";position:absolute;left:0;top:-30px;font:700 8rem/1 "Libre Baskerville",Georgia,serif;color:#ffb347;opacity:.8}
+.btm-q p{margin:0;font:italic 400 1.35rem/1.6 "Libre Baskerville",Georgia,serif}
+.btm-q cite{display:inline-block;margin-top:14px;font:800 .95rem "Nunito",sans-serif;font-style:normal;letter-spacing:.06em;color:#ffb347;cursor:pointer}
+[data-theme=wordtown] .btm-tfa{background:#fff;color:#22304a}
+[data-theme=wordtown] .btm-qotd{background:#4aa8ff;color:#22304a}
+[data-theme=wordtown] .btm-qotd header h3,[data-theme=wordtown] .btm-q cite{color:#fff}
+[data-theme=gruvbox] .btm-tfa{background:#32302f;color:#ebdbb2}
+[data-theme=gruvbox] .btm-tfa-page img{border-color:#504945;background:#282828}
+[data-theme=gruvbox] .btm-tfa-page h4{border-color:#665c54}
+[data-theme=gruvbox] .btm-tfa-page p::first-letter{color:#fe8019}
+[data-theme=gruvbox] .btm-qotd{background:#1d2021}
+[data-theme=gruvbox] .btm-qotd header h3,[data-theme=gruvbox] .btm-q cite,[data-theme=gruvbox] .btm-q::before{color:#fabd2f}
+.btm-q{margin-top:40px}

@@ -1900,8 +1900,26 @@ def r_desktop_snap(h):
     h._send(200, {"data": DESKTOP.snap()})
 
 
-# ---- Wikipedia's picture of the day (for the Bulletin): fetched once a day, nothing shown when there's no internet
+# ---- the Bulletin's dailies: Wikipedia's picture of the day and featured article, and Wikiquote's quote of the day
+#      (fetched once a day; nothing shown when there's no internet)
 _potd = {"day": "", "data": None, "tried": 0.0}
+
+
+def _quote_of_the_day(when):
+    """Wikiquote's quote of the day: {text, by, page}."""
+    page = "Wikiquote:Quote_of_the_day/" + time.strftime("%B_", when) + str(when.tm_mday) + time.strftime(",_%Y", when)
+    req = urllib.request.Request("https://en.wikiquote.org/w/api.php?" + urllib.parse.urlencode({"action": "parse", "page": page, "prop": "text", "format": "json", "formatversion": 2}),
+                                 headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
+    t = json.loads(urllib.request.urlopen(req, timeout=15).read())["parse"]["text"]
+    t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
+    t = re.sub(r"</?(a|span|i|b|em|strong|abbr)(?=[ >])[^>]*>", "", t)          # (inline tags: no gap; the rest end a line)
+    text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", t))).strip()
+    m = re.search(r"“\s*(.+?)\s*”\s*[—–]\s*(.+?)\s*$", text, re.S)
+    if not m:
+        return None
+    q = m.group(1)
+    by = m.group(2).strip()
+    return {"text": q[:900], "by": by[:120], "page": "https://en.wikiquote.org/wiki/" + urllib.parse.quote(by.replace(" ", "_"))}
 
 
 @route("GET", r"/api/potd")
@@ -1912,13 +1930,26 @@ def r_potd(h):
         try:
             req = urllib.request.Request(f"https://api.wikimedia.org/feed/v1/wikipedia/en/featured/{day}",
                                          headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
-            img = json.loads(urllib.request.urlopen(req, timeout=15).read()).get("image") or {}
+            feed = json.loads(urllib.request.urlopen(req, timeout=15).read())
+            img = feed.get("image") or {}
             thumb = (img.get("thumbnail") or {}).get("source") or ""
+            strip = lambda s: re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html.unescape(s or ""))).strip()
+            data = {}
             if thumb:
-                strip = lambda s: re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html.unescape(s or ""))).strip()
-                _potd.update(day=day, data={"img": thumb, "title": re.sub(r"^File:|\.\w+$", "", img.get("title") or ""),
+                data.update({"img": thumb, "title": re.sub(r"^File:|\.\w+$", "", img.get("title") or ""),
                     "desc": strip((img.get("description") or {}).get("text"))[:400], "artist": strip((img.get("artist") or {}).get("text"))[:120],
                     "license": (img.get("license") or {}).get("type") or "", "page": img.get("file_page") or ""})
+            a = feed.get("tfa") or {}
+            if a.get("extract"):
+                data["article"] = {"title": (a.get("titles") or {}).get("normalized") or a.get("title") or "", "about": a.get("description") or "",
+                                   "text": a["extract"][:1400], "img": (a.get("thumbnail") or {}).get("source") or "",
+                                   "page": ((a.get("content_urls") or {}).get("mobile") or {}).get("page") or ""}
+            try:
+                data["quote"] = _quote_of_the_day(time.localtime())
+            except Exception as e:
+                print("[inkwell] no quote of the day:", e)
+            if data:
+                _potd.update(day=day, data=data)
         except Exception as e:
             print("[inkwell] no picture of the day:", e)
     h._send(200, _potd["data"] if _potd["day"] == day else {})

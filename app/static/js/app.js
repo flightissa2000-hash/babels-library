@@ -420,9 +420,30 @@ const Bulletin = (() => {
     return f || it.watched_at || (pctOf(it) >= 98 ? it.opened_at : 0) || 0;
   }
   /* this week's challenge: kept all week; "Pick another" draws again */
+  /* a series is read in order: whatever volume turns up, the suggestion is the first one on your shelves that you
+     haven't finished */
+  const firstUnread = (it) => {
+    if (!inSeries(it)) return it;
+    const k = seriesKey(it.series);
+    return S.items.filter((x) => x.has_file && x.kind === it.kind && inSeries(x) && seriesKey(x.series) === k).sort(seriesOrder)
+      .find((x) => Wheel.status(x)[0] !== "done") || it;
+  };
+  // the challenge: a volume you've started is to be finished, one you haven't is to be started
+  function inOrder(it, type, cur, reroll) {
+    if (type === "revisit") return [it, type];
+    const f = firstUnread(it);
+    if (reroll && cur && f.id === cur.id) return [it, type];
+    return [f, Wheel.status(f)[0] === "now" ? "finish" : "start"];
+  }
+  // Still in the Wrapper: the series' first unread volume, and none from a series you're partway through
+  const wrapperPicks = (list) => {
+    const seen = new Set();
+    return list.map(firstUnread).filter((x) => !x.opened_at && Wheel.status(x)[0] === "new" && !seen.has(x.id) && seen.add(x.id));
+  };
   function challenge(reroll = false) {
     const wk = weekStart(), cur = load();
-    if (cur && cur.week === wk && !reroll && S.items.some((i) => i.id === cur.id)) return cur;
+    const ci = cur && S.items.find((i) => i.id === cur.id);
+    if (cur && cur.week === wk && !reroll && ci && (cur.type === "revisit" || Wheel.status(ci)[0] === "done" || firstUnread(ci) === ci)) return cur;
     const r = rng(wk + ":" + ((cur && cur.week === wk ? cur.draw : 0) + (reroll ? 1 : 0)));
     const mine = S.items.filter((i) => i.has_file && ["book", "graphic", "tv", "movie", "article"].includes(i.kind) && !(cur && cur.id === i.id && reroll));
     const started = mine.filter((i) => { const s = Wheel.status(i)[0]; return s === "now"; });
@@ -433,7 +454,8 @@ const Bulletin = (() => {
     if (!pools.length) { if (reroll) toast("Nothing else to pick right now: start something and it'll turn up here."); return reroll ? cur : null; }
     let [type, pool] = pools[0];
     if (pools.length > 1 && r() < (reroll ? 0.5 : 0.25)) [type, pool] = pools[1 + Math.floor(r() * (pools.length - 1))];
-    const it = shuffle(pool, r)[0];
+    const [it, kind] = inOrder(shuffle(pool, r)[0], type, cur, reroll);
+    type = kind;
     const c = { week: wk, id: it.id, type, draw: (cur && cur.week === wk ? cur.draw || 0 : 0) + (reroll ? 1 : 0), since: it.opened_at || 0 };
     save(c);
     return c;
@@ -453,8 +475,7 @@ const Bulletin = (() => {
     }
     const wk = weekStart(), r = rng("shelf" + wk);
     const c = challenge(), it = c && S.items.find((i) => i.id === c.id);
-    const papers = shuffle(S.items.filter((i) => i.kind === "article" && i.has_file && !i.opened_at && !isNewsStory(i)), r).slice(0, 4);
-    const wrapped = shuffle(S.items.filter((i) => ["book", "graphic", "movie", "tv"].includes(i.kind) && i.has_file && !i.opened_at && !(it && i.id === it.id)), r).slice(0, 6);
+    const wrapped = wrapperPicks(shuffle(S.items.filter((i) => ["book", "graphic", "movie", "tv"].includes(i.kind) && i.has_file && !i.opened_at), r)).filter((i) => !(it && i.id === it.id)).slice(0, 6);
     const when = new Date(wk * 1000).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
     const issue = Math.max(1, Math.round((wk - Date.UTC(2026, 0, 5) / 1000) / (7 * DAY)) + 1);
     const ch = it ? { it, c, ok: done(c, it), p: pctOf(it), finish: c.type === "finish", start: c.type === "start",
@@ -482,17 +503,32 @@ const Bulletin = (() => {
       <section class="btm-sec btm-wrap"><header><small>ON YOUR SHELVES</small><h3>Still in the Wrapper</h3><p>Books, comics and films you own but have never opened</p></header>
         ${wrapped.length ? `<div class="btm-velvet">${wrapped.map((x) => `<button class="btm-gem" data-detail="${x.id}">${coverHTML(x)}<span class="btm-seal">UNOPENED</span><b>${esc(Wheel.title(x))}</b><small>${esc([Wheel.kindName(x), authorLine(x)].filter(Boolean).join(" · "))}</small></button>`).join("")}</div>`
           : `<p class="hint">You've opened everything on your shelves. Impressive.</p>`}</section>
-      <section class="btm-sec btm-lab"><header><small>FIG. 1 · YOUR READING LIST</small><h3>Lab Notes</h3><p>Scientific papers on your desk, still waiting for a read</p></header>
-        ${papers.length ? `<div class="btm-figs">${papers.map((a, i) => `<button class="btm-fig" data-detail="${a.id}"><span class="btm-fignum">FIG. ${i + 1}</span><b>${esc(a.title)}</b><small>${esc([a.journal, a.year].filter(Boolean).join(" · "))}</small><i class="btm-mol"></i></button>`).join("")}</div>`
-          : `<p class="hint">Every paper on your shelves has been read. The lab is quiet.</p>`}</section>
+      <section class="btm-sec btm-tfa" id="btTfa" hidden></section>
+      <section class="btm-sec btm-qotd" id="btQuote" hidden></section>
     </div>${tabs}</div>`;
     paintPicks(wk);
     paintPotd();
   }
-  /* Wikipedia's picture of the day, pinned in the cover's empty corner (only when the internet can be reached) */
+  /* the dailies (only when the internet can be reached): Wikipedia's picture of the day, pinned in the cover's empty
+     corner; its featured article; Wikiquote's quote of the day */
+  const openWeb = (u) => u && (window.Browser && S.desktopMode === "native" ? Browser.open(u) : window.open(u));
   async function paintPotd() {
     let p = null;
     try { p = await api.get("/api/potd"); } catch (e) {}
+    const a = p && p.article, tf = $("#btTfa");
+    if (a && tf) {
+      tf.innerHTML = `<header><small>FROM THE ENCYCLOPEDIA</small><h3>Today's Article</h3><p>Wikipedia's featured article of the day</p></header>
+        <article class="btm-tfa-page">${a.img ? `<img src="${esc(a.img)}" alt="" onerror="this.remove()">` : ""}<h4>${esc(a.title)}</h4>${a.about ? `<em>${esc(a.about)}</em>` : ""}
+          <p>${esc(a.text)}</p><button class="btn" data-bt-web="${esc(a.page)}">Read the whole article →</button></article>`;
+      tf.hidden = false;
+    }
+    const q = p && p.quote, qb = $("#btQuote");
+    if (q && qb) {
+      qb.innerHTML = `<header><small>WORDS TO LIVE BY</small><h3>Quote of the Day</h3></header>
+        <blockquote class="btm-q"><p>${esc(q.text)}</p><cite data-bt-web="${esc(q.page)}">— ${esc(q.by)}</cite></blockquote>`;
+      qb.hidden = false;
+    }
+    for (const b of document.querySelectorAll("[data-bt-web]")) b.onclick = () => openWeb(b.dataset.btWeb);
     const box = $("#btPotd");
     if (!box || !p || !p.img) return;
     const img = new Image();
