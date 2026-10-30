@@ -186,21 +186,28 @@ addEventListener('storage',function(e){if(e.key==='inkwell-theme')document.docum
   @keyframes hm-spin{to{transform:rotate(360deg)}}
   @keyframes hm-unspin{to{transform:rotate(-360deg)}}
   @keyframes hm-twinkle{50%{opacity:.4}}
-  .hm-sky{position:relative;height:min(80vh,800px);min-height:760px;display:grid;place-items:center;overflow:hidden}
+  .hm-sky{position:relative;height:980px;display:grid;place-items:center;overflow:hidden}
+  @media (max-width:960px),(max-height:760px){.hm-sky{zoom:.78}}
   .hm-stars{position:absolute;inset:0;background:radial-gradient(circle,#fff 1px,transparent 1.6px) 0 0/97px 97px,radial-gradient(circle,#cdf 1px,transparent 1.6px) 40px 60px/131px 131px,radial-gradient(circle,#fff 1.4px,transparent 2px) 70px 20px/173px 173px;animation:hm-twinkle 4s ease-in-out infinite}
   .hm-ring{position:absolute;left:50%;top:50%;border-radius:50%;border:1px dashed rgba(200,210,255,.18);animation:hm-spin 90s linear infinite}
-  .hm-ring.r1{width:480px;height:480px;margin:-240px}
-  .hm-ring.r2{width:700px;height:700px;margin:-350px;animation-duration:150s;animation-direction:reverse}
-  .hm-sky:hover .hm-ring,.hm-sky:hover .hm-planet span{animation-play-state:paused}
+  /* (the rings clear the sun and its search box: sites never sit on the search or under its edge) */
+  .hm-ring.r1{width:650px;height:650px;margin:-325px}
+  .hm-ring.r2{width:890px;height:890px;margin:-445px;animation-duration:150s;animation-direction:reverse}
+  .hm-sky:hover .hm-ring,.hm-sky:hover .hm-planet span,.hm-sky:hover .hm-planet b{animation-play-state:paused}
   .hm-planet{position:absolute;left:50%;top:50%;width:0;height:0;transform:rotate(var(--a)) translateX(var(--rr)) rotate(calc(-1 * var(--a)));color:#eef;text-decoration:none}
-  .hm-ring.r1 .hm-planet{--rr:240px}.hm-ring.r2 .hm-planet{--rr:350px}
+  .hm-ring.r1 .hm-planet{--rr:325px}.hm-ring.r2 .hm-planet{--rr:445px}
+  .hm-ring{z-index:3;pointer-events:none}.hm-planet{pointer-events:auto}      /* (the sites over the sun's rays; the search under the rings still takes clicks) */
   .hm-planet span{position:absolute;left:-30px;top:-30px;display:grid;place-items:center;width:60px;height:60px;border-radius:50%;
     background:radial-gradient(circle at 35% 30%,#8fb0ff,#3b2e8f 70%);box-shadow:0 0 22px rgba(140,170,255,.6);animation:hm-unspin 90s linear infinite;transition:transform .2s}
   .hm-ring.r2 .hm-planet span{background:radial-gradient(circle at 35% 30%,#ff9ad5,#7a2a6f 70%);box-shadow:0 0 22px rgba(255,140,210,.5);animation-duration:150s;animation-direction:reverse}
   .hm-planet span img{width:28px;height:28px;border-radius:6px}
   .hm-planet:hover span{transform:scale(1.25)}
-  .hm-planet b{position:absolute;left:-60px;top:36px;width:120px;text-align:center;font:700 .74rem var(--font-ui);color:#cbd3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 4px #000}
-  .hm-sun{position:relative;z-index:2;width:min(500px,86vw);padding:34px 30px;border-radius:50%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  /* each site's name on a little label under it, kept upright as the rings turn (it turns back around the planet) */
+  .hm-planet b{position:absolute;left:-66px;top:38px;width:132px;box-sizing:border-box;padding:3px 9px;border-radius:999px;text-align:center;font:700 .74rem var(--font-ui);
+    color:#dfe4ff;background:rgba(12,9,36,.72);border:1px solid rgba(200,210,255,.25);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    transform-origin:66px -38px;animation:hm-unspin 90s linear infinite;pointer-events:none}
+  .hm-ring.r2 .hm-planet b{animation-duration:150s;animation-direction:reverse}
+  .hm-sun{position:relative;z-index:2;width:min(480px,82vw);padding:34px 30px;border-radius:50%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
     background:radial-gradient(circle,rgba(255,216,77,.28),rgba(255,140,30,.08) 55%,transparent 70%)}
   .hm-sun h1{color:#fff7d6;text-shadow:0 0 30px #ffb000;margin:6px 0 18px}
   .hm-sun .bw-day{color:#ffd84d}
@@ -255,8 +262,14 @@ addEventListener('storage',function(e){if(e.key==='inkwell-theme')document.docum
   [data-theme=wordtown] .hm-planet span{background:#ffc93c;border:3px solid #22304a;box-shadow:0 4px 0 #22304a}
   [data-theme=wordtown] .hm-ring.r2 .hm-planet span{background:#ff8fc0;border:3px solid #22304a;box-shadow:0 4px 0 #22304a}
   [data-theme=wordtown] .hm-ring.r1 .hm-planet:nth-child(2n) span{background:#8fd17a}[data-theme=wordtown] .hm-ring.r2 .hm-planet:nth-child(2n) span{background:#4aa8ff}
-  [data-theme=wordtown] .hm-planet b{color:#22304a;text-shadow:0 1px 0 #fff;font-family:"Fredoka",sans-serif}
-  [data-theme=wordtown] .hm-sun{background:radial-gradient(circle,#ffe58a,#ffc93c 60%,transparent 62%);border-radius:50%}
+  [data-theme=wordtown] .hm-planet b{color:#22304a;background:#fff;border:2px solid #22304a;box-shadow:0 2px 0 #22304a;font-family:"Fredoka",sans-serif}
+  /* the sun: a crisp disc with a navy outline and a halo, its rays turning slowly behind it */
+  [data-theme=wordtown] .hm-sun{background:radial-gradient(circle at 40% 34%,#fff4b8,#ffd75a 45%,#ffc93c 70%);border:4px solid #22304a;border-radius:50%;
+    box-shadow:0 7px 0 #22304a,0 0 0 18px rgba(255,214,90,.35),0 0 0 36px rgba(255,214,90,.16)}
+  [data-theme=wordtown] .hm-sun::before{content:"";position:absolute;inset:-48px;z-index:-1;border-radius:50%;
+    background:repeating-conic-gradient(rgba(255,201,60,.38) 0 7deg,transparent 7deg 22deg);
+    -webkit-mask:radial-gradient(circle,transparent 55%,#000 56%,#000 68%,transparent 72%);mask:radial-gradient(circle,transparent 55%,#000 56%,#000 68%,transparent 72%);animation:hm-spin 120s linear infinite}
+  [data-theme=wordtown] .hm-sun .bw-search{width:94%}
   [data-theme=wordtown] .hm-sun h1{color:#22304a;text-shadow:none}
   [data-theme=wordtown] .hm-sun .bw-day{color:#22304a}
   [data-theme=wordtown] .hm-sun .bw-search{background:#fff;border:3px solid #22304a!important;box-shadow:0 5px 0 #22304a}
@@ -281,7 +294,7 @@ addEventListener('storage',function(e){if(e.key==='inkwell-theme')document.docum
   [data-theme=gruvbox] .hm-ring{border:1px dashed #504945}
   [data-theme=gruvbox] .hm-planet span{background:radial-gradient(circle at 35% 30%,#8ec07c,#427b58 70%);box-shadow:0 0 14px rgba(142,192,124,.35);border-radius:4px}
   [data-theme=gruvbox] .hm-ring.r2 .hm-planet span{background:radial-gradient(circle at 35% 30%,#d3869b,#8f3f71 70%);box-shadow:0 0 14px rgba(211,134,155,.3)}
-  [data-theme=gruvbox] .hm-planet b{color:#a89984;font-family:"IBM Plex Mono",monospace;font-weight:400}
+  [data-theme=gruvbox] .hm-planet b{color:#a89984;background:#282828;border:1px solid #504945;border-radius:3px;font-family:"IBM Plex Mono",monospace;font-weight:400}
   [data-theme=gruvbox] .hm-sun{background:radial-gradient(circle,rgba(250,189,47,.22),rgba(254,128,25,.06) 55%,transparent 70%)}
   [data-theme=gruvbox] .hm-sun h1{color:#fabd2f;text-shadow:0 0 24px rgba(250,189,47,.5)}
   [data-theme=gruvbox] .hm-sun .bw-search{background:#282828;border:1px solid #665c54!important;box-shadow:0 0 24px rgba(250,189,47,.2);border-radius:3px}
