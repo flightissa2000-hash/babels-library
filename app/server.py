@@ -981,6 +981,8 @@ def r_profile_edit(h, pid):
 @route("DELETE", r"/api/profiles/(\d+)")
 def r_profile_delete(h, pid):
     pid = int(pid)
+    if pid != store.desktop_profile():
+        store.need_pin(pid, h.json_body().get("pin"))       # (one with a PIN goes only with its PIN)
     journal.delete_profile(pid)
     import browser
     browser.delete_profile(pid)          # (its bookmarks)
@@ -996,11 +998,28 @@ def r_profile_delete(h, pid):
 @route("POST", r"/api/profiles/current")
 def r_profile_use(h):
     """Who's using this computer now."""
-    pid = int(h.json_body().get("id") or store.OWNER)
+    d = h.json_body()
+    pid = int(d.get("id") or store.OWNER)
     if not store.get_profile(pid):
         raise ValueError("No such profile.")
+    if pid != store.desktop_profile():
+        store.need_pin(pid, d.get("pin"))
     store.set_settings({"desktop_profile": pid})
     h._send(200, {"current": pid})
+
+
+@route("POST", r"/api/profiles/unlock")
+def r_profile_unlock(h):
+    """The app opened on a profile with a PIN: is this it?"""
+    store.need_pin(store.desktop_profile(), h.json_body().get("pin"))
+    h._send(200, {"ok": True})
+
+
+@route("POST", r"/api/profiles/pin")
+def r_profile_pin(h):
+    """A PIN or password for the profile in use (set, changed, or taken off with an empty one)."""
+    d = h.json_body()
+    h._send(200, store.set_pin(store.desktop_profile(), d.get("pin"), d.get("old")))
 
 
 # ---- the Bulletin's challenge of the week: kept per profile, so it's the same on the computer and every phone

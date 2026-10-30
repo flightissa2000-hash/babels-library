@@ -523,9 +523,14 @@ def _make_handler():
                     if b.get("edit"):          # rename / new face for a profile
                         store.update_profile(int(b["edit"]), b)
                         return self._send(200, {"profiles": store.list_profiles(), "current": store.viewer()})
+                    if "setpin" in b:          # a PIN for the profile this phone is using (empty: none)
+                        store.set_pin(store.viewer(), b.get("setpin"), b.get("old"))
+                        return self._send(200, {"profiles": store.list_profiles(), "current": store.viewer()})
                     new = int(b.get("id") or store.OWNER)
                     if not store.get_profile(new):
                         raise ValueError("No such profile.")
+                    if new != store.viewer():
+                        store.need_pin(new, b.get("pin"))
                     _touch(dev, profile=new)
                     return self._send(200, {"current": new})
                 if path == "/sync/bulletin":

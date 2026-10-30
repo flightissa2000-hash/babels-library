@@ -2663,3 +2663,10 @@ body.ib-on .drawer{z-index:45}
 [data-theme=gruvbox] .btm-qotd{background:#1d2021}
 [data-theme=gruvbox] .btm-qotd header h3,[data-theme=gruvbox] .btm-q cite,[data-theme=gruvbox] .btm-q::before{color:#fabd2f}
 .btm-q{margin-top:40px}
+
+/* a profile's PIN */
+.prof-pin .pin-field,.prof-lock .pin-field{display:flex;flex-direction:column;gap:4px;margin:8px 0;text-align:left}
+.prof-pin .pin-field input,.prof-lock .pin-field input{font-size:1.1rem;padding:8px 10px;letter-spacing:.2em}
+.prof-lock{background:var(--bg,#111)!important;z-index:9500}
+.prof-lock p .btn{margin:6px 4px 0 0}
+.prof-menu .prof-pinbtn{margin-top:10px;width:100%}

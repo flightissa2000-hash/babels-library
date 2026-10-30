@@ -1,4 +1,6 @@
 """SQLite storage for Babel's Library."""
+import hashlib
+import hmac
 import json
 import os
 import sqlite3
@@ -205,15 +207,54 @@ def desktop_profile():
     return pid if get_profile(pid) else OWNER
 
 
+def _pub(r):
+    """A profile as it's shown: whether it has a PIN, never the PIN."""
+    d = dict(r)
+    d["locked"] = bool(d.pop("pin", None))
+    return d
+
+
 def list_profiles():
     with _lock:
-        return [dict(r) for r in _db.execute("SELECT * FROM profiles ORDER BY id")]
+        return [_pub(r) for r in _db.execute("SELECT * FROM profiles ORDER BY id")]
 
 
 def get_profile(pid):
     with _lock:
         r = _db.execute("SELECT * FROM profiles WHERE id=?", (pid,)).fetchone()
-    return dict(r) if r else None
+    return _pub(r) if r else None
+
+
+def _hash_pin(pin, salt):
+    return hashlib.pbkdf2_hmac("sha256", str(pin).encode(), bytes.fromhex(salt), 120000).hex()
+
+
+def check_pin(pid, pin):
+    """Does this PIN open the profile? (A profile without one is always open.)"""
+    with _lock:
+        r = _db.execute("SELECT pin FROM profiles WHERE id=?", (pid,)).fetchone()
+    if not r or not r["pin"]:
+        return True
+    salt, h = r["pin"].split("$", 1)
+    return hmac.compare_digest(_hash_pin(pin or "", salt), h)
+
+
+def need_pin(pid, pin):
+    if not check_pin(pid, pin):
+        raise ValueError("That PIN isn't right." if pin else "This profile has a PIN.")
+
+
+def set_pin(pid, pin, old=None):
+    """Give a profile a PIN or password (4+ characters), change it, or take it off (pin empty). Its old one first."""
+    need_pin(pid, old)
+    pin = str(pin or "").strip()
+    if pin and len(pin) < 4:
+        raise ValueError("Make it at least 4 characters.")
+    salt = os.urandom(16).hex()
+    with _lock:
+        _db.execute("UPDATE profiles SET pin=? WHERE id=?", (f"{salt}${_hash_pin(pin, salt)}" if pin else None, pid))
+        _db.commit()
+    return get_profile(pid)
 
 
 def create_profile(name, face=""):
@@ -331,6 +372,8 @@ CREATE TABLE IF NOT EXISTS profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, name 
 CREATE TABLE IF NOT EXISTS profile_progress (profile_id INTEGER NOT NULL, item_id INTEGER NOT NULL, field TEXT NOT NULL, value TEXT, ts REAL NOT NULL,
   PRIMARY KEY (profile_id, item_id, field));
 """)
+    if "pin" not in {r[1] for r in _db.execute("PRAGMA table_info(profiles)")}:
+        _db.execute("ALTER TABLE profiles ADD COLUMN pin TEXT")             # salt$hash: a PIN or password, if it has one
     if not _db.execute("SELECT 1 FROM profiles").fetchone():
         _db.execute("INSERT INTO profiles (id, name, face, created_at) VALUES (1, 'Me', ?, ?)", ("\U0001F989", time.time()))
     if "profile_id" not in {r[1] for r in _db.execute("PRAGMA table_info(annotations)")}:
