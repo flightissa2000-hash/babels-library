@@ -623,6 +623,15 @@ def _make_handler():
                         if meth == method and rx.match("/api/news/" + m.group(1)):
                             return fn(self)
                     return self._send(404, {"error": "not found"})
+                # a journal entry's own cover: see it, search for one, choose one (or take it off)
+                m = re.match(r"^/sync/log/(\d+)/cover$|^/sync/log/covers$", path)
+                if m:
+                    target = f"/api/log/{m.group(1)}/cover" if m.group(1) else "/api/log/covers"
+                    for meth, rx, fn in server.ROUTES:
+                        mm = rx.match(target)
+                        if meth == method and mm:
+                            return fn(self, *mm.groups())
+                    return self._send(404, {"error": "not found"})
                 if path == "/sync/potd" and method == "GET":        # the Bulletin's photo of the day
                     for meth, rx, fn in server.ROUTES:
                         if meth == "GET" and rx.match("/api/potd"):

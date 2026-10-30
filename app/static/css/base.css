@@ -1287,7 +1287,10 @@ html.mini .jr-panel{display:none}
 .jb-stamp.on{opacity:1;transform:rotate(-4deg) scale(1.06);box-shadow:inset 0 0 0 1px currentColor}
 .jb-stamp.st-finished{color:#b3261e}.jb-stamp.st-reading{color:#1f4e9b}.jb-stamp.st-dropped{color:#5f5f5f}
 .jb-stamp.sm{padding:2px 6px;font-size:.6rem;border-width:2px}
-.jb-photo{position:relative;float:right;width:110px;margin:0 0 12px 16px;transform:rotate(3deg)}
+.jb-photo{position:relative;float:right;width:110px;margin:0 0 12px 16px;transform:rotate(3deg);padding:0;border:0;background:none;cursor:pointer;transition:transform .15s}
+.jb-photo:hover{transform:rotate(1deg) scale(1.04)}
+.jb-photo.empty{height:150px;border:2px dashed rgba(90,70,40,.35);background:rgba(255,255,255,.35);color:rgba(60,45,25,.6);font:italic .8rem/1.4 "Libre Baskerville",Georgia,serif}
+.jb-photo.empty:hover{background:rgba(255,255,255,.7);color:#7a2c12}
 .jb-photo img{display:block;width:100%;box-shadow:2px 3px 8px rgba(0,0,0,.3);border:5px solid #fff}
 .jb-tape{position:absolute;top:-10px;left:50%;width:60px;height:20px;margin-left:-30px;background:rgba(240,225,170,.75);transform:rotate(-6deg);box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .jb-fields{display:flex;flex-direction:column;gap:2px;margin-bottom:16px}
@@ -2710,3 +2713,17 @@ body.ib-on .drawer{z-index:45}
 /* the closing mark, after the quote's last word */
 .btm-q p::after{content:"”";display:inline-block;margin-left:.08em;font:700 6.4rem/0 "Libre Baskerville",Georgia,serif;font-style:normal;color:#ffb347;opacity:.8;vertical-align:-.66em}
 [data-theme=gruvbox] .btm-q p::after{color:#fabd2f}
+
+/* the journal's cover picker */
+.jb-cpick .ka-card{max-width:860px;width:calc(100% - 40px);max-height:88vh;display:flex;flex-direction:column}
+.jb-cpick .ka-card.busy{opacity:.6;pointer-events:none}
+.jb-cp-search,.jb-cp-url{display:flex;gap:8px}
+.jb-cp-search input,.jb-cp-url input{flex:1;min-width:0}
+.jb-cp-grid{flex:1;min-height:160px;overflow:auto;margin:12px 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;align-content:start}
+.jb-cp-hit{display:flex;flex-direction:column;gap:4px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;text-align:left;cursor:pointer}
+.jb-cp-hit:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.jb-cp-hit img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:6px;background:#0002}
+.jb-cp-hit b{font-size:.82rem;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.jb-cp-hit small{font-size:.7rem;opacity:.65;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.jb-cp-other{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.jb-cp-other .jb-cp-url{flex:1 1 320px}

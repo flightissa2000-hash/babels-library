@@ -1798,6 +1798,8 @@ def r_log_update(h, lid):
 @route("DELETE", r"/api/log/(\d+)")
 def r_log_delete(h, lid):
     journal.delete_log(int(lid))
+    if os.path.exists(journal.cover_path(lid)):
+        os.remove(journal.cover_path(lid))
     h._send(200, {"ok": True})
 
 
@@ -1844,6 +1846,103 @@ def _save_photos(folder, items):
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, os.path.join(folder, "index.json"))
+
+
+# ---- a journal entry's own cover: chosen from a search (films, shows, books, games), a web address, or a file
+def _image_kind(raw):
+    return ("image/jpeg" if raw[:3] == b"\xff\xd8\xff" else "image/png" if raw[:8] == b"\x89PNG\r\n\x1a\n"
+            else "image/webp" if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP" else "image/gif" if raw[:4] == b"GIF8" else None)
+
+
+@route("GET", r"/api/log/(\d+)/cover")
+def r_log_cover(h, lid):
+    p = journal.cover_path(lid)
+    if not os.path.exists(p):
+        return h._send(404, {"error": "No cover"})
+    with open(p, "rb") as f:
+        raw = f.read()
+    h._send(200, raw, _image_kind(raw) or "image/jpeg", {"Cache-Control": "max-age=31536000"})
+
+
+@route("POST", r"/api/log/(\d+)/cover")
+def r_log_cover_set(h, lid):
+    import base64
+    if not journal._q("SELECT 1 FROM media_log WHERE id=?", (int(lid),), one=True):
+        return h._send(404, {"error": "No such entry"})
+    d = h.json_body()
+    if d.get("remove"):
+        return h._send(200, {"cover_v": journal.set_cover(lid, None)})
+    if d.get("data"):                       # a picture from this computer (or phone)
+        m = re.match(r"^data:image/[\w+.-]+;base64,(.+)$", d["data"], re.S)
+        raw = base64.b64decode(m.group(1)) if m else b""
+    else:                                   # a picture found by the search (or a web address pasted in)
+        url = str(d.get("url") or "").strip()
+        if not re.match(r"^https?://", url):
+            raise ValueError("That isn't a web address.")
+        raw = b""
+        # (Wikipedia's small poster thumbnails: a sharper size of the same picture first)
+        tries = [re.sub(r"/\d+px-", "/500px-", url, count=1), url] if "/thumb/" in url and re.search(r"/\d+px-", url) else [url]
+        for u in tries:
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    raw = r.read(15 * 1024 * 1024 + 1)
+                if _image_kind(raw):
+                    break
+            except Exception:
+                if u == tries[-1]:
+                    raise
+    if not raw or len(raw) > 15 * 1024 * 1024 or not _image_kind(raw):
+        raise ValueError("That isn't a picture (or it's over 15 MB).")
+    h._send(200, {"cover_v": journal.set_cover(lid, raw)})
+
+
+@route("GET", r"/api/log/covers")
+def r_log_cover_search(h):
+    """Covers to choose from: posters for films and shows, book covers, game boxes, by the kind of entry."""
+    q, kind = (h.query.get("q") or "").strip(), h.query.get("kind") or "book"
+    if not q:
+        return h._send(200, [])
+    out = []
+    try:
+        if kind == "movie":
+            for f in lookup.film_search(q, 12):
+                if f.get("thumb"):
+                    out.append({"title": f["title"], "sub": " · ".join(x for x in (f.get("year"), f.get("description")) if x), "img": f["thumb"]})
+        if kind == "show":                      # TV posters: TVmaze has them for nearly every show (Wikipedia often doesn't)
+            req = urllib.request.Request("https://api.tvmaze.com/search/shows?" + urllib.parse.urlencode({"q": q}),
+                                         headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
+            for x in json.loads(urllib.request.urlopen(req, timeout=15).read()):
+                sh = x.get("show") or {}
+                img = (sh.get("image") or {}).get("original") or (sh.get("image") or {}).get("medium")
+                if img:
+                    out.append({"title": sh.get("name") or "", "sub": " · ".join(x for x in ((sh.get("premiered") or "")[:4], (sh.get("network") or sh.get("webChannel") or {}).get("name")) if x), "img": img})
+        if kind == "game" or (kind == "show" and not out):   # Wikipedia's shows and games (by their infobox), with their pictures
+            d = json.loads(lookup._get(lookup._WP_API + urllib.parse.urlencode({
+                "action": "query", "format": "json", "formatversion": 2, "generator": "search",
+                "gsrsearch": f'{q} hastemplate:"{"Infobox television" if kind == "show" else "Infobox video game"}"',
+                "gsrlimit": 12, "prop": "pageimages|description", "piprop": "thumbnail", "pithumbsize": 400, "pilicense": "any"})))
+            for p in sorted((d.get("query") or {}).get("pages") or [], key=lambda x: x.get("index", 0)):
+                if (p.get("thumbnail") or {}).get("source"):
+                    out.append({"title": p["title"], "sub": p.get("description") or "", "img": p["thumbnail"]["source"]})
+        if (kind == "show" or kind == "movie") and not out:         # (nothing on Wikipedia: the catalogue's)
+            for c in media_catalog.search("tv" if kind == "show" else "movie", q, None, None) or []:
+                if c.get("cover"):
+                    out.append({"title": c["title"], "sub": " · ".join(str(x) for x in (c.get("year"), c.get("blurb")) if x), "img": c["cover"]})
+        elif kind not in ("movie", "show", "game"):
+            for b in discover.search(q, 24, None, None) or []:
+                if b.get("cover"):
+                    out.append({"title": b["title"], "sub": " · ".join(str(x) for x in (", ".join(b.get("authors") or []), b.get("year")) if x), "img": b["cover"].replace("-M.jpg", "-L.jpg")})
+    except Exception as e:
+        if not out:
+            raise ValueError(f"Couldn't search for covers ({e}).")
+    seen, uniq = set(), []
+    for c in out:
+        k = (c["img"], (c["title"] + c["sub"]).lower())
+        if not seen.intersection(k):
+            seen.update(k)
+            uniq.append(c)
+    h._send(200, uniq[:30])
 
 
 @route("GET", r"/api/log/(\d+)/photos")

@@ -35,6 +35,8 @@ with store._lock:
         store._db.execute("UPDATE media_log SET status='finished' WHERE finished IS NOT NULL AND finished<>''")
     if "profile_id" not in {r[1] for r in store._db.execute("PRAGMA table_info(media_log)")}:
         store._db.execute("ALTER TABLE media_log ADD COLUMN profile_id INTEGER DEFAULT 1")     # whose journal it is
+    if "cover_v" not in {r[1] for r in store._db.execute("PRAGMA table_info(media_log)")}:
+        store._db.execute("ALTER TABLE media_log ADD COLUMN cover_v INTEGER DEFAULT 0")        # a cover of its own (0: none)
     store._db.commit()
 
 
@@ -113,6 +115,30 @@ def update_log(log_id, d):
         return
     d["updated_at"] = time.time()
     _q(f"UPDATE media_log SET {','.join(k + '=?' for k in d)} WHERE id=?", tuple(d.values()) + (log_id,), commit=True)
+
+
+COVER_DIR = os.path.join(store.DATA_DIR, "journal_covers")
+
+
+def cover_path(log_id):
+    return os.path.join(COVER_DIR, f"{int(log_id)}.img")
+
+
+def set_cover(log_id, data):
+    """A cover of the entry's own (for one that isn't in the library, or to use another picture): None takes it off."""
+    if data is not None:
+        os.makedirs(COVER_DIR, exist_ok=True)
+        tmp = cover_path(log_id) + ".part"
+        with open(tmp, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, cover_path(log_id))
+    elif os.path.exists(cover_path(log_id)):
+        os.remove(cover_path(log_id))
+    v = int(time.time()) if data is not None else 0
+    _q("UPDATE media_log SET cover_v=?, updated_at=? WHERE id=?", (v, time.time(), int(log_id)), commit=True)
+    return v
 
 
 def delete_log(log_id):

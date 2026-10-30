@@ -160,13 +160,14 @@ const Journal = (() => {
   function infoPage(r) {
     const lib = r.item_id && S.items.find((i) => i.id === r.item_id);
     const s = statusOfRow(r);
-    const cover = lib && lib.has_cover ? `<img src="/api/items/${lib.id}/cover?v=${lib.cover_v || 0}" alt="">` : "";
+    // its own cover (chosen in the journal) first, else the library's
+    const src = r.cover_v ? `/api/log/${r.id}/cover?v=${r.cover_v}` : lib && lib.has_cover ? `/api/items/${lib.id}/cover?v=${lib.cover_v || 0}` : "";
     return `<div class="jb-kick">${KIND_ICON[r.kind] || "✦"} ${(KIND_ONE[r.kind] || "Entry").toUpperCase()}</div>
       <textarea class="jb-title" data-jb-field="title" rows="2" spellcheck="false">${esc(r.title)}</textarea>
       ${r.kind === "writing" ? `<div class="jb-fields"><label><span>Begun</span><em>${esc(new Date((r.created_at || 0) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</em></label>
         <label><span>Link</span><input data-jb-field="link" value="${esc(r.link || "")}" placeholder="https://…"></label></div>${figsHTML(r.id)}
         <button class="jb-remove" data-jb-del="${r.id}">tear out this page</button>` : `<div class="jb-stamps">${Object.entries(STATUS).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jb-setstatus="${k}">${l}</button>`).join("")}</div>
-      ${cover ? `<div class="jb-photo">${cover}<span class="jb-tape"></span></div>` : ""}
+      <button class="jb-photo ${src ? "" : "empty"}" data-jb-cover title="${src ? "Change the cover" : "Add a cover"}">${src ? `<img src="${src}" alt="">` : `<span>＋<br>add a cover</span>`}<span class="jb-tape"></span></button>
       <div class="jb-fields">
         <label><span>Type</span><select data-jb-field="kind">${Object.keys(KIND_ONE).map((k) => `<option value="${k}" ${k === r.kind ? "selected" : ""}>${KIND_ONE[k]}</option>`).join("")}</select></label>
         <label><span>Finished</span><input type="date" data-jb-field="finished" value="${esc(r.finished || "")}"><button class="jb-mini" data-jb-today>today</button></label>
@@ -844,6 +845,64 @@ const Journal = (() => {
   }
   const rowOfPage = (el) => { const pg = el.closest(".jb-pg"); return pg ? J.pages[Number(pg.dataset.page)]?.row : null; };
 
+  /* a cover for an entry: search posters, book covers and game boxes by its title, or a web address, or a picture
+     from this computer */
+  function coverPicker(r) {
+    const w = document.createElement("div");
+    w.className = "keep-ask jb-cpick";
+    w.innerHTML = `<div class="ka-card" role="dialog"><h3>A cover for “${esc(r.title)}”</h3>
+      <form class="jb-cp-search"><input name="q" value="${esc(r.title)}" placeholder="search for it…" autocomplete="off"><button class="btn primary">Search</button></form>
+      <div class="jb-cp-grid"><p class="hint">Looking…</p></div>
+      <div class="jb-cp-other">
+        <form class="jb-cp-url"><input name="u" placeholder="or paste a picture's web address" autocomplete="off"><button class="btn sm">Use it</button></form>
+        <label class="btn sm">From this computer…<input type="file" accept="image/*" hidden></label>
+        ${r.cover_v ? `<button class="btn sm danger" data-cp-off>Take the cover off</button>` : ""}
+        <button class="btn sm" data-x>Cancel</button></div></div>`;
+    const end = () => { w.remove(); removeEventListener("keydown", key, true); };
+    const key = (e) => { if (e.key === "Escape") { e.stopPropagation(); end(); } };
+    const grid = w.querySelector(".jb-cp-grid");
+    let found = [];
+    const search = async (q) => {
+      grid.innerHTML = `<p class="hint">Looking…</p>`;
+      try { found = await api.get(`/api/log/covers?kind=${encodeURIComponent(r.kind)}&q=${encodeURIComponent(q)}`); }
+      catch (err) { grid.innerHTML = `<p class="hint">${esc(err.message)}</p>`; return; }
+      grid.innerHTML = found.length ? found.map((c, i) => `<button class="jb-cp-hit" data-cp="${i}"><img loading="lazy" alt="" src="${esc(c.img)}" onerror="this.closest('button').remove()"><b>${esc(c.title)}</b><small>${esc(c.sub || "")}</small></button>`).join("")
+        : `<p class="hint">Nothing found. Try other words, or paste a picture's address below.</p>`;
+    };
+    const choose = async (body) => {
+      w.querySelector(".ka-card").classList.add("busy");
+      try {
+        const res = await api.send("POST", `/api/log/${r.id}/cover`, body);
+        r.cover_v = res.cover_v;
+        J.cache.delete(r.id);
+        end();
+        host()?.querySelectorAll(".jb-info").forEach((pg) => { const pp = J.pages[Number(pg.dataset.page)]; if (pp && pp.row && pp.row.id === r.id) pg.outerHTML = pageHTML(pp, Number(pg.dataset.page)); });
+        toast(body.remove ? "Cover taken off" : "Cover saved");
+      } catch (err) { w.querySelector(".ka-card").classList.remove("busy"); toast(err.message, "error"); }
+    };
+    w.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (e.target.classList.contains("jb-cp-search")) search(e.target.q.value.trim());
+      else if (e.target.u.value.trim()) choose({ url: e.target.u.value.trim() });
+    });
+    w.addEventListener("click", (e) => {
+      const h = e.target.closest("[data-cp]");
+      if (h) return choose({ url: found[Number(h.dataset.cp)].img });
+      if (e.target.closest("[data-cp-off]")) return choose({ remove: true });
+      if (e.target.closest("[data-x]") || e.target === w) end();
+    });
+    w.querySelector("input[type=file]").addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => choose({ data: rd.result });
+      rd.readAsDataURL(f);
+    });
+    addEventListener("keydown", key, true);
+    document.body.append(w);
+    search(r.title);
+  }
+
   document.addEventListener("click", async (e) => {
     const t = e.target;
     if (t.closest("[data-jb-close]")) return closeModal();
@@ -938,6 +997,7 @@ const Journal = (() => {
       return;
     }
     if (t.closest("[data-jb-today]")) { const r = rowOfPage(t); if (r) saveField(r.id, "finished", today()); return; }
+    if (t.closest("[data-jb-cover]")) { const r = rowOfPage(t); if (r) coverPicker(r); return; }
     const lb = t.closest("[data-jb-lib]");
     if (lb) { closeModal(); return openDrawer(Number(lb.dataset.jbLib)); }
     const dl = t.closest("[data-jb-del]");
