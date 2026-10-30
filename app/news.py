@@ -31,19 +31,33 @@ PX = "https://phys.org/rss-feed/{}-news/"
 SD = "https://www.sciencedaily.com/rss/{}.xml"
 # press releases first: what universities, labs and agencies announce about their own research (through Phys.org,
 # ScienceDaily and the institutions' own newsrooms)
+# research journals, each in its topic: their own tables of contents (papers as published; plainer and more technical
+# than the press releases). Nature's main journal, PNAS, BMJ and JACS turn feed readers away, so they aren't here.
+J = {"prl": "https://feeds.aps.org/rss/recent/prl.xml", "nphys": "https://www.nature.com/nphys.rss", "quanta": "https://api.quantamagazine.org/feed/",
+     "apjl": "https://iopscience.iop.org/journal/rss/2041-8205", "natastron": "https://www.nature.com/natastron.rss",
+     "cell": "https://www.cell.com/cell/current.rss", "elife": "https://elifesciences.org/rss/recent.xml", "plosbio": "https://journals.plos.org/plosbiology/feed/atom",
+     "nejm": "https://www.nejm.org/action/showFeed?jc=nejm&type=etoc&feed=rss", "lancet": "https://www.thelancet.com/rssfeed/lancet_current.xml",
+     "jama": "https://jamanetwork.com/rss/site_3/67.xml", "natmed": "https://www.nature.com/nm.rss", "plosmed": "https://journals.plos.org/plosmedicine/feed/atom",
+     "nclimate": "https://www.nature.com/nclimate.rss", "sciadv": "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=sciadv",
+     "nchem": "https://www.nature.com/nchem.rss", "natmi": "https://www.nature.com/natmachintell.rss", "science": "https://www.science.org/rss/news_current.xml"}
+# (a journal's name for its stories: their links only say the publisher)
+FEED_NAME = {J["prl"]: "Physical Review Letters", J["nphys"]: "Nature Physics", J["quanta"]: "Quanta Magazine", J["apjl"]: "Astrophysical Journal Letters",
+             J["natastron"]: "Nature Astronomy", J["cell"]: "Cell", J["elife"]: "eLife", J["plosbio"]: "PLOS Biology", J["nejm"]: "NEJM",
+             J["lancet"]: "The Lancet", J["jama"]: "JAMA", J["natmed"]: "Nature Medicine", J["plosmed"]: "PLOS Medicine", J["nclimate"]: "Nature Climate Change",
+             J["sciadv"]: "Science Advances", J["nchem"]: "Nature Chemistry", J["natmi"]: "Nature Machine Intelligence", J["science"]: "Science"}
 SCIENCE = [
     ("labs", "Straight from the labs", ["https://news.mit.edu/rss/research", "https://www.nih.gov/news-releases/feed.xml", "https://www.nasa.gov/news-release/feed/",
                                         "https://www.esa.int/rssfeed/Our_Activities/Space_Science", "https://news.harvard.edu/gazette/section/science-technology/feed/",
                                         "https://www.cam.ac.uk/news/feed"]),
-    ("physics", "Physics", [PX.format("physics"), SD.format("matter_energy")]),
-    ("space", "Space", [PX.format("space"), SD.format("space_time")]),
-    ("life", "Life & biology", [PX.format("biology"), SD.format("plants_animals")]),
-    ("health", "Health & medicine", ["https://medicalxpress.com/rss-feed/", SD.format("health_medicine")]),
-    ("earth", "Earth & climate", [PX.format("earth"), SD.format("earth_climate")]),
-    ("chem", "Chemistry & materials", [PX.format("chemistry"), PX.format("nanotech")]),
-    ("tech", "Technology & computing", [PX.format("technology"), SD.format("computers_math")]),
+    ("physics", "Physics", [PX.format("physics"), SD.format("matter_energy"), J["prl"], J["nphys"], J["quanta"]]),
+    ("space", "Space", [PX.format("space"), SD.format("space_time"), J["apjl"], J["natastron"]]),
+    ("life", "Life & biology", [PX.format("biology"), SD.format("plants_animals"), J["cell"], J["elife"], J["plosbio"]]),
+    ("health", "Health & medicine", ["https://medicalxpress.com/rss-feed/", SD.format("health_medicine"), J["nejm"], J["lancet"], J["jama"], J["natmed"], J["plosmed"]]),
+    ("earth", "Earth & climate", [PX.format("earth"), SD.format("earth_climate"), J["nclimate"], J["sciadv"]]),
+    ("chem", "Chemistry & materials", [PX.format("chemistry"), PX.format("nanotech"), J["nchem"]]),
+    ("tech", "Technology & computing", [PX.format("technology"), SD.format("computers_math"), J["natmi"], J["science"]]),
 ]
-OUTLET = {"phys.org": "Phys.org", "medicalxpress.com": "Medical Xpress", "sciencedaily.com": "ScienceDaily", "mit.edu": "MIT News", "nih.gov": "NIH",
+OUTLET = {"phys.org": "Phys.org", "techxplore.com": "Tech Xplore", "medicalxpress.com": "Medical Xpress", "sciencedaily.com": "ScienceDaily", "mit.edu": "MIT News", "nih.gov": "NIH",
           "nasa.gov": "NASA", "esa.int": "ESA", "harvard.edu": "Harvard Gazette", "cam.ac.uk": "University of Cambridge", "science.org": "Science", "nytimes.com": "The New York Times", "bbc.co.uk": "BBC News", "bbc.com": "BBC News", "theguardian.com": "The Guardian",
           "npr.org": "NPR", "newscientist.com": "New Scientist", "arstechnica.com": "Ars Technica", "quantamagazine.org": "Quanta Magazine",
           "scientificamerican.com": "Scientific American"}
@@ -70,10 +84,12 @@ def _when(s):
     try:
         return parsedate_to_datetime(s).timestamp()
     except Exception:
-        try:
-            return time.mktime(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
-        except Exception:
-            return 0
+        for n, f in ((19, "%Y-%m-%dT%H:%M:%S"), (10, "%Y-%m-%d")):
+            try:
+                return time.mktime(time.strptime((s or "")[:n], f))
+            except Exception:
+                pass
+        return 0
 
 
 def _outlet(link):
@@ -96,10 +112,21 @@ def feed(url):
     """One RSS feed as a list of stories (cached)."""
     def fetch():
         root = ET.fromstring(_get(url))
+        # RSS 2.0, RSS 1.0 (most journals) and Atom (PLOS): the same few fields, under different names
+        R1, AT = "{http://purl.org/rss/1.0/}", "{http://www.w3.org/2005/Atom}"
+        def find(it, *names):
+            for n in names:
+                v = it.findtext(n)
+                if v:
+                    return v
+            return ""
         out = []
-        for it in root.iter("item"):
-            title = _text(it.findtext("title"), 300)
-            link = (it.findtext("link") or "").strip()
+        for it in [*root.iter("item"), *root.iter(R1 + "item"), *root.iter(AT + "entry")]:
+            title = _text(find(it, "title", R1 + "title", AT + "title"), 300)
+            link = find(it, "link", R1 + "link").strip()
+            if not link:
+                el = next((e for e in it.findall(AT + "link") if e.get("rel", "alternate") == "alternate"), None)
+                link = el.get("href", "") if el is not None else ""
             if not title or not link:
                 continue
             src_el = it.find("source")
@@ -117,9 +144,10 @@ def feed(url):
                 m = re.search(r'<img[^>]+src="([^"]+)"', (it.findtext("description") or "") + (it.findtext("{http://purl.org/rss/1.0/modules/content/}encoded") or ""))
                 img = m.group(1) if m else ""
             img = img.replace("/csz/news/tmb/", "/csz/news/800a/")       # phys.org lists 100px thumbnails; this is the full picture
-            desc = "" if "news.google.com" in url else _text(it.findtext("description"))
-            out.append({"title": title, "link": link, "source": source or _outlet(link), "by": _text(it.findtext(DC + "creator"), 80),
-                        "date": _when(it.findtext("pubDate") or it.findtext(DC + "date")), "summary": desc, "image": img})
+            desc = "" if "news.google.com" in url else _text(find(it, "description", R1 + "description", AT + "summary", AT + "content"))
+            out.append({"title": title, "link": link, "source": source or FEED_NAME.get(url) or _outlet(link),
+                        "by": _text(find(it, DC + "creator", AT + "author/" + AT + "name"), 80),
+                        "date": _when(find(it, "pubDate", DC + "date", AT + "published", AT + "updated")), "summary": desc, "image": img})
         return out
     return _cached(("feed", url), TTL, fetch)
 
@@ -159,7 +187,7 @@ def forget_feeds():
 
 def science():
     with concurrent.futures.ThreadPoolExecutor(4) as ex:
-        rows = list(ex.map(lambda s: {"key": s[0], "label": s[1], "items": _many(s[2], 24, mix=s[0] == "labs")}, SCIENCE))
+        rows = list(ex.map(lambda s: {"key": s[0], "label": s[1], "items": _many(s[2], 30, mix=True)}, SCIENCE))
     return {"sections": rows}
 
 
