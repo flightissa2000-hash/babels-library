@@ -964,7 +964,12 @@ def r_update(h, iid):
 # ---- profiles: everyone who uses the library, each with their own places, notes, journal and Bulletin
 @route("GET", r"/api/profiles")
 def r_profiles(h):
-    h._send(200, {"profiles": store.list_profiles(), "current": store.viewer()})
+    import phonesync
+    ps = store.list_profiles()
+    for p in ps:            # (the phones, e-readers and web apps using each profile)
+        p["devices"] = [d.get("name") or "A phone" for d in phonesync.devices()
+                        if int(d.get("profile") or store.OWNER) == p["id"] or (p["id"] == store.OWNER and not store.get_profile(int(d.get("profile") or store.OWNER)))]
+    h._send(200, {"profiles": ps, "current": store.viewer()})
 
 
 @route("POST", r"/api/profiles")

@@ -75,7 +75,7 @@ const Profiles = (() => {
     m.innerHTML = `<h4>Who's using Babel's Library?</h4>
       ${list.map((p) => `<div class="prof-row ${p.id === cur ? "on" : ""}">
         <button class="prof-face" data-pface="${p.id}" title="Change the picture">${esc(p.face || "🙂")}</button>
-        <input data-pname="${p.id}" value="${esc(p.name)}" maxlength="40" aria-label="Name">
+        <span class="prof-who"><input data-pname="${p.id}" value="${esc(p.name)}" maxlength="40" aria-label="Name">${(p.devices || []).length ? `<small title="Phones and web apps using this profile">📱 ${esc(p.devices.join(", "))}</small>` : ""}</span>
         ${p.locked ? `<span title="Has a PIN">🔒</span>` : ""}
         ${p.id === cur ? `<span class="badge">In use</span>` : `<button class="btn sm" data-puse="${p.id}">Use</button>`}
         ${p.id !== 1 ? `<button class="btn sm danger" data-pdel="${p.id}" title="Remove this profile">✕</button>` : ""}</div>`).join("")}
