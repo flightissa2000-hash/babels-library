@@ -101,7 +101,7 @@ window.Media = (() => {
         return `<div class="jx-row"><div class="jx-rowname"><b>${L}</b>${esc(name === "Albums" ? "Every record" : name)}<span>${list.length} ${list.length === 1 ? "album" : "albums"}</span></div><div class="jx-strips">
           ${list.map((a, i) => `<div class="jx-strip" data-album="${esc(a.key)}" title="${esc(a.title)} — ${esc(a.artist)}"><span class="jx-code">${L}${i + 1}</span>
             <span class="jx-art">${a.cover ? `<img loading="lazy" alt="" src="/api/items/${a.cover.id}/cover?v=${a.cover.cover_v || a.cover._cv || 0}">` : `<i class="jx-vinyl"></i>`}</span>
-            <span class="jx-t"><b>${esc(a.title)}</b><small>${esc(a.artist)}${a.year ? " · " + esc(a.year) : ""}</small><small>${a.tracks.length} ${a.tracks.length === 1 ? "song" : "songs"}</small></span>
+            <span class="jx-t"><b>${esc(a.title)}</b><small>${esc(a.artist)}</small><small class="jx-meta">${[a.year, `${a.tracks.length} ${a.tracks.length === 1 ? "song" : "songs"}`].filter(Boolean).map(esc).join(" · ")}</small></span>
             <span class="jx-acts"><button class="jx-go" data-play-album="${esc(a.key)}" title="Play">▶</button><button class="jx-go alt" data-queue-album="${esc(a.key)}" data-how="end" title="Add to the queue">＋</button></span></div>`).join("")}</div></div>`;
       }).join("");
       out.push(`<section class="jukebox"><div class="jx-arch"><span class="jx-neon"></span><b>BABEL</b><small>SELECT-A-SONG</small></div>
