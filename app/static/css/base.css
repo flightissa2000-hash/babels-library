@@ -2415,7 +2415,7 @@ body.ib-on .drawer{z-index:45}
 [data-theme=wordtown] .btm-bg{display:none}
 [data-theme=wordtown] .btm-cover::before{background:radial-gradient(circle at 82% 16%,#fff 0 46px,transparent 47px),radial-gradient(circle at 88% 12%,#fff 0 36px,transparent 37px),radial-gradient(circle at 12% 88%,#ffc93c 0 30px,transparent 31px)}
 [data-theme=wordtown] .btm-cover::after,[data-theme=wordtown] .btm-sheen{display:none}
-[data-theme=wordtown] .btm-title b{color:#ff6b4a;-webkit-text-stroke:4px #22304a;background:none;text-shadow:6px 6px 0 #22304a;font-family:"Fredoka","Anton",sans-serif;font-weight:700}
+[data-theme=wordtown] .btm-title b{color:#ff6b4a;-webkit-text-stroke:8px #22304a;paint-order:stroke fill;background:none;text-shadow:6px 6px 0 #22304a;font-family:"Fredoka","Anton",sans-serif;font-weight:700}
 [data-theme=wordtown] .btm-title span{color:#22304a}
 [data-theme=wordtown] .btm-ribbon{background:#ff8fc0;color:#22304a;border:3px solid #22304a;box-shadow:none}
 [data-theme=wordtown] .btm-hero .cover{border:4px solid #22304a;box-shadow:8px 8px 0 #22304a}
