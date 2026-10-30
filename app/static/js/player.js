@@ -7,10 +7,10 @@ const Player = (() => {
   const fmt = (s) => { if (!isFinite(s) || s < 0) return "0:00"; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = String(s % 60).padStart(2, "0"); return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`; };
   const slim = (t) => ({ ...(t.ab ? { ab: t.ab, ch: t.ch, src: t.src } : {}), id: t.id, title: t.title, authors: t.authors || [], album: t.album || "", album_artist: t.album_artist || "", has_cover: !!t.has_cover, cover_v: t.cover_v || "", duration: t.duration || 0, track: t.track || null, disc: t.disc || null });
 
-  const P = { tracks: [], order: [], pos: 0, shuffle: false, uid: 0 };
+  const P = { tracks: [], order: [], pos: 0, shuffle: false, repeat: "off", uid: 0 };
   let audio = null, onChange = () => {}, saveT = null, lastSaved = 0;
   let remote = false, RS = null, pollT = null, tickT = null;  // remote-control mode (widget)
-  try { P.shuffle = localStorage.getItem("inkwell-shuffle") === "1"; } catch (e) {}
+  try { P.shuffle = localStorage.getItem("inkwell-shuffle") === "1"; P.repeat = localStorage.getItem("inkwell-repeat") || "off"; } catch (e) {}
 
   // The slider is a position (0..1); loudness is heard logarithmically, so map it onto a 36 dB range.
   // Linear volume crowds all the audible change into the left fifth and seems to cut out early.
@@ -59,6 +59,7 @@ const Player = (() => {
         case "prev": return prev();
         case "stop": return stop();
         case "shuffle": return toggleShuffle();
+        case "repeat": return cycleRepeat();
         case "jump": return jump(c.n);
         case "remove": return removeAt(c.n);
         case "clear": P.order = P.order.slice(0, P.pos + 1); return changed();
@@ -126,8 +127,23 @@ const Player = (() => {
     P.order.splice(n, 1);
     changed();
   }
-  function next() {
-    if (remote) return sendCmd({ action: "next" }); if (P.pos < P.order.length - 1) { P.pos++; load(true); } else if (audio) { audio.pause(); audio.currentTime = 0; } }
+  function next(auto) {
+    if (remote) return sendCmd({ action: "next" });
+    const t = cur();
+    if (auto === true && P.repeat === "one" && t && !t.ab && audio) { audio.currentTime = 0; audio.play().catch(() => {}); return; }
+    if (P.pos < P.order.length - 1) { P.pos++; load(true); }
+    else if (P.repeat === "all" && t && !t.ab && P.order.length) {        // round again (a new shuffle each time round)
+      P.pos = 0;
+      if (P.shuffle) P.order = shuffled(P.order);
+      load(true);
+    } else if (audio) { audio.pause(); audio.currentTime = 0; } }
+  /* repeat: off, the whole list, this song */
+  function cycleRepeat() {
+    if (remote) { if (RS) RS.repeat = { off: "all", all: "one", one: "off" }[RS.repeat || "off"]; paint(); return sendCmd({ action: "repeat" }); }
+    P.repeat = { off: "all", all: "one", one: "off" }[P.repeat] || "off";
+    try { localStorage.setItem("inkwell-repeat", P.repeat); } catch (e) {}
+    changed();
+  }
   function prev() {
     if (remote) return sendCmd({ action: "prev" }); if (!audio) return; if (audio.currentTime > 3 || P.pos === 0) audio.currentTime = 0; else { P.pos--; load(true); } }
   function toggle() {
@@ -182,7 +198,7 @@ const Player = (() => {
 
   /* --- state for the other window --- */
   function state() {
-    return { tracks: P.tracks, order: P.order, pos: P.pos, shuffle: P.shuffle, time: audio ? audio.currentTime : 0, at: Date.now() / 1000,
+    return { tracks: P.tracks, order: P.order, pos: P.pos, shuffle: P.shuffle, repeat: P.repeat, time: audio ? audio.currentTime : 0, at: Date.now() / 1000,
       duration: audio && isFinite(audio.duration) ? audio.duration : 0, playing: !!(audio && !audio.paused && cur()), volume: volPos, rate: abRate() };
   }
   function restore(st, autoplay) {
@@ -222,7 +238,9 @@ const Player = (() => {
     if (q("#plCover")) q("#plCover").innerHTML = t && t.has_cover ? `<img alt="" src="/api/items/${t.id}/cover?v=${t.cover_v || 0}">` : "";
     if (q("#plShuf")) { q("#plShuf").classList.toggle("on", V.shuffle); q("#plShuf").setAttribute("aria-pressed", V.shuffle ? "true" : "false"); q("#plShuf").title = V.shuffle ? "Shuffle is on" : "Shuffle is off"; }
     if (q("#plQCount")) { const n = V.order.length - V.pos - 1; q("#plQCount").textContent = n > 0 ? n : ""; }
+    if (q("#plRep")) { const r = V.repeat || "off"; q("#plRep").classList.toggle("on", r !== "off"); q("#plRep").textContent = r === "one" ? "🔂" : "🔁"; q("#plRep").title = { off: "Repeat is off", all: "Repeating the whole list", one: "Repeating this song" }[r]; }
     paintQueue();
+    dispatchEvent(new Event("player-changed"));
   }
   function paintQueue() {
     const box = q("#plQueueList");
@@ -280,6 +298,7 @@ const Player = (() => {
       on("#plNext", "click", next);
       on("#plPrev", "click", prev);
       on("#plShuf", "click", () => toggleShuffle());
+      on("#plRep", "click", cycleRepeat);
       on("#plClose", "click", stop);
       on("#plQueue", "click", () => { const p = q("#plQueuePanel"); p.hidden = !p.hidden; paintQueue(); });
       on("#plQueueClose", "click", () => { q("#plQueuePanel").hidden = true; });
@@ -306,6 +325,7 @@ const Player = (() => {
     on("#plNext", "click", next);
     on("#plPrev", "click", prev);
     on("#plShuf", "click", () => toggleShuffle());
+    on("#plRep", "click", cycleRepeat);
     on("#plClose", "click", stop);
     on("#plQueue", "click", () => { const p = q("#plQueuePanel"); p.hidden = !p.hidden; paintQueue(); });
     on("#plQueueClose", "click", () => { q("#plQueuePanel").hidden = true; });
@@ -322,7 +342,9 @@ const Player = (() => {
     try { let v = parseFloat(localStorage.getItem("inkwell-volpos")); if (!(v >= 0 && v <= 1)) { const old = parseFloat(localStorage.getItem("inkwell-volume")); v = old > 0 && old <= 1 ? Math.max(0, 1 + (20 * Math.log10(old)) / 36) : 1; } setVol(v); if (q("#plVol")) q("#plVol").value = v; } catch (e) {}
     audio.addEventListener("play", () => { if (q("#plPlay")) q("#plPlay").textContent = "❚❚"; save(); });
     audio.addEventListener("pause", () => { if (q("#plPlay")) q("#plPlay").textContent = "▶"; save(); });
-    audio.addEventListener("ended", () => { if (cur() && cur().ab && P.pos >= P.order.length - 1) saveAbPos(true); next(); });
+    audio.addEventListener("ended", () => { if (cur() && cur().ab && P.pos >= P.order.length - 1) saveAbPos(true); next(true); });
+    audio.addEventListener("play", () => dispatchEvent(new Event("player-changed")));
+    audio.addEventListener("pause", () => dispatchEvent(new Event("player-changed")));
     audio.addEventListener("timeupdate", () => {
       if (q("#plSeek")) { q("#plSeek").max = audio.duration || 0; q("#plSeek").value = audio.currentTime; }
       if (q("#plTime")) q("#plTime").textContent = `${fmt(audio.currentTime)} / ${fmt(audio.duration)}`;
@@ -336,5 +358,6 @@ const Player = (() => {
     paint();
   }
 
-  return { bind, startCmdPolling, seek, pause, setVolume, setRate, playAudiobook, nowPlaying, get remote() { return remote; }, playList, playNext, addToQueue, toggleShuffle, toggle, next, prev, stop, state, restore, fmt, get shuffle() { return P.shuffle; }, current: cur };
+  return { bind, startCmdPolling, seek, pause, setVolume, setRate, playAudiobook, nowPlaying, get remote() { return remote; }, playList, playNext, addToQueue, toggleShuffle, cycleRepeat, toggle, next, prev, stop, state, restore, fmt, get shuffle() { return remote ? !!(RS && RS.shuffle) : P.shuffle; }, get repeat() { return remote ? (RS && RS.repeat) || "off" : P.repeat; },
+    get playing() { return remote ? !!(RS && RS.playing) : !!(audio && !audio.paused); }, current: () => viewCur(), openQueue: () => { const p = q("#plQueuePanel"); if (p) { p.hidden = false; paintQueue(); } } };
 })();

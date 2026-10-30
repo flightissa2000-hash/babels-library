@@ -39,7 +39,7 @@ PHONE_FIELDS = ("id", "kind", "title", "authors", "year", "publisher", "journal"
                 "genre", "subject", "fiction", "topic", "tags", "summary", "series", "series_index", "season", "episode",
                 "album", "album_artist", "track", "disc", "duration", "file_type", "format", "direction", "physical",
                 "progress", "last_location", "favorite", "wanted", "watched", "watched_at", "opened_at", "added_at",
-                "has_file", "has_cover", "cover_v", "collections", "ann_count", "audio_pos", "updated_at", "expires_at", "audio_status")
+                "has_file", "has_cover", "cover_v", "collections", "ann_count", "audio_pos", "updated_at", "expires_at", "audio_status", "source", "private_to")
 BIN = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "BabelsLibrary", "bin")
 
 _codes = {}          # pairing code -> expiry
@@ -187,9 +187,12 @@ def _file_size(item_id):
 
 
 def pull(since):
+    """Everything changed since `since`, as the phone's profile sees it (its own places, notes and journal)."""
     import journal
     now = time.time()
-    items = [it for it in store.list_items() if (it.get("updated_at") or 0) > since]
+    pid = store.viewer()
+    mine = store.progress_changed_since(pid, since) if pid != store.OWNER else set()
+    items = [it for it in store.list_items() if (it.get("updated_at") or 0) > since or it["id"] in mine]
     clocks = store.item_clocks({it["id"] for it in items})
     out = []
     for it in items:
@@ -200,11 +203,19 @@ def pull(since):
     anns = [a for a in store.list_annotations() if (a.get("updated_at") or 0) > since]
     try:
         log = journal.list_log()
-        entries = [dict(r) for r in journal._q("SELECT id, log_id, body, created_at, updated_at FROM journal WHERE COALESCE(updated_at, created_at, 0) > ?", (since,))]
+        logs = {r["id"] for r in log}
+        entries = [dict(r) for r in journal._q("SELECT id, log_id, body, created_at, updated_at FROM journal WHERE COALESCE(updated_at, created_at, 0) > ?", (since,))
+                   if r["log_id"] in logs]
     except Exception:
         log, entries = [], []
-    return {"now": now, "full": since <= 0, "items": out, "annotations": anns, "deleted": store.tombstones_since(since),
-            "collections": store.list_collections(), "log": [dict(r) for r in log], "journal": entries}
+    deleted = store.tombstones_since(since)
+    with store._lock:       # hidden by another profile since: gone from this phone
+        hid = store._db.execute("SELECT id FROM items WHERE private_to IS NOT NULL AND private_to<>? AND updated_at>?", (pid, since)).fetchall()
+    deleted += [{"kind": "item", "ref_id": r[0], "ts": now} for r in hid]
+    return {"now": now, "full": since <= 0, "items": out, "annotations": anns, "deleted": deleted,
+            "collections": store.list_collections(), "log": [dict(r) for r in log], "journal": entries,
+            "profiles": store.list_profiles(), "profile": pid,
+            "bulletin": (store.get_settings().get("bulletin") or {}).get(str(pid)) or {}}
 
 
 def push_journal(jops, skew):
@@ -302,8 +313,11 @@ def push_anns(aops):
     return made
 
 
-def push(dev, ops, phone_now, jops=None, aops=None):
-    """Apply the phone's changes. Its clock may be off from ours: shift its times by the difference."""
+def push(dev, ops, phone_now, jops=None, aops=None, profile=None):
+    """Apply the phone's changes. Its clock may be off from ours: shift its times by the difference. (profile: a
+    profile the phone used to keep on its own, now brought here: its places and notes go to that profile.)"""
+    if profile and store.get_profile(int(profile)):
+        store.use_profile(int(profile))
     skew = time.time() - float(phone_now) if phone_now else 0.0
     made = push_journal(jops, skew) if jops else {}
     made_anns = push_anns(aops) if aops else {}
@@ -468,6 +482,7 @@ def _make_handler():
             parsed = urllib.parse.urlparse(self.path)
             self.query = dict(urllib.parse.parse_qsl(parsed.query))
             path = parsed.path
+            store.use_profile(None)
             try:
                 if path == "/sync/hello":
                     return self._send(200, {"app": "babels-library", "name": pc_name(), "version": VERSION})
@@ -486,6 +501,30 @@ def _make_handler():
                 dev = device_for(tok)
                 if not dev:
                     return self._send(401, {"error": "This phone isn't paired with this computer (or was removed)."})
+                # each phone is logged in as a profile: it sees that profile's places, notes, journal and hidden things
+                pid = int(dev.get("profile") or store.OWNER)
+                store.use_profile(pid if store.get_profile(pid) else store.OWNER)
+                if path == "/sync/profiles":
+                    if method == "POST":
+                        b = self.json_body()
+                        p = store.create_profile(b.get("name"), b.get("face") or "")
+                        return self._send(200, {"profile": p, "profiles": store.list_profiles()})
+                    return self._send(200, {"profiles": store.list_profiles(), "current": store.viewer()})
+                if path == "/sync/profile" and method == "POST":
+                    b = self.json_body()
+                    if b.get("edit"):          # rename / new face for a profile
+                        store.update_profile(int(b["edit"]), b)
+                        return self._send(200, {"profiles": store.list_profiles(), "current": store.viewer()})
+                    new = int(b.get("id") or store.OWNER)
+                    if not store.get_profile(new):
+                        raise ValueError("No such profile.")
+                    _touch(dev, profile=new)
+                    return self._send(200, {"current": new})
+                if path == "/sync/bulletin":
+                    for meth, rx, fn in server.ROUTES:
+                        if meth == method and rx.match("/api/bulletin"):
+                            return fn(self)
+                    return self._send(404, {"error": "not found"})
                 if path == "/sync/pull":
                     data = pull(float(self.query.get("since") or 0))
                     data["queue"] = dev.get("queue") or []
@@ -496,7 +535,7 @@ def _make_handler():
                     return self._send(200, data)
                 if path == "/sync/push" and method == "POST":
                     b = self.json_body()
-                    return self._send(200, push(dev, b.get("ops"), b.get("now"), b.get("jops"), b.get("aops")))
+                    return self._send(200, push(dev, b.get("ops"), b.get("now"), b.get("jops"), b.get("aops"), b.get("profile")))
                 if path == "/sync/sent" and method == "POST":
                     _sent(dev, self.json_body().get("ids") or [])
                     return self._send(200, {"ok": True})

@@ -92,17 +92,22 @@ window.Media = (() => {
     const out = [];
     const kinds = new Set(items.map((i) => i.kind));
     if (kinds.has("music")) {
+      // a jukebox: the window shows what's playing (with the controls), the albums are its selection strips
       let al = albums(items);
       al.sort((a, b) => a.artist.localeCompare(b.artist) || (parseInt(a.year) || 0) - (parseInt(b.year) || 0));
       const key = gb === "genre" ? (a) => a.genre || "Unknown genre" : gb === "year" ? (a) => a.year || "Undated" : gb === "author" ? (a) => a.artist : () => "Albums";
-      let first = true;
-      for (const [name, list] of groupBy(al, key, gb === "year" ? (a, b) => (parseInt(b[0]) || 0) - (parseInt(a[0]) || 0) : null)) {
-        const shuf = first ? `<button class="btn sm shuffle-all" data-shuffle-all="1" title="Shuffle every song in every album">⤨ Shuffle all music</button>` : "";
-        first = false;
-        out.push(`<section class="group"><div class="group-head"><h2>${ransom(name === "Albums" ? "Music" : name)}</h2><span class="count">${list.length} ${list.length === 1 ? "album" : "albums"}</span>${shuf}</div>
-          <div class="cd-shelf">${list.map((a) => `<button class="cd-card" data-album="${esc(a.key)}" title="${esc(a.title)} — ${esc(a.artist)}">${disc(a.cover, a.title)}
-            <span class="ct">${esc(a.title)}</span><span class="ca">${esc(a.artist)}${a.year ? " · " + esc(a.year) : ""}</span><span class="ca">${a.tracks.length} ${a.tracks.length === 1 ? "track" : "tracks"}</span></button>`).join("")}</div></section>`);
-      }
+      const rows = groupBy(al, key, gb === "year" ? (a, b) => (parseInt(b[0]) || 0) - (parseInt(a[0]) || 0) : null).map(([name, list], gi) => {
+        const L = String.fromCharCode(65 + (gi % 26));
+        return `<div class="jx-row"><div class="jx-rowname"><b>${L}</b>${esc(name === "Albums" ? "Every record" : name)}<span>${list.length} ${list.length === 1 ? "album" : "albums"}</span></div><div class="jx-strips">
+          ${list.map((a, i) => `<div class="jx-strip" data-album="${esc(a.key)}" title="${esc(a.title)} — ${esc(a.artist)}"><span class="jx-code">${L}${i + 1}</span>
+            <span class="jx-art">${a.cover ? `<img loading="lazy" alt="" src="/api/items/${a.cover.id}/cover?v=${a.cover.cover_v || a.cover._cv || 0}">` : `<i class="jx-vinyl"></i>`}</span>
+            <span class="jx-t"><b>${esc(a.title)}</b><small>${esc(a.artist)}${a.year ? " · " + esc(a.year) : ""}</small><small>${a.tracks.length} ${a.tracks.length === 1 ? "song" : "songs"}</small></span>
+            <span class="jx-acts"><button class="jx-go" data-play-album="${esc(a.key)}" title="Play">▶</button><button class="jx-go alt" data-queue-album="${esc(a.key)}" data-how="end" title="Add to the queue">＋</button></span></div>`).join("")}</div></div>`;
+      }).join("");
+      out.push(`<section class="jukebox"><div class="jx-arch"><span class="jx-neon"></span><b>BABEL</b><small>SELECT-A-SONG</small></div>
+        <div class="jx-window" id="jxWindow">${jxWindow()}</div>
+        <div class="jx-dial"><button class="btn" data-shuffle-all="1">⤨ Shuffle everything</button><button class="btn" data-jx-queue>☰ The queue</button></div>
+        <div class="jx-cards">${rows}</div><div class="jx-grille"></div></section>`);
     }
     if (kinds.has("tv") || kinds.has("movie")) out.push(watchingSection(items));
     if (kinds.has("tv")) {
@@ -280,6 +285,24 @@ window.Media = (() => {
     if (!W._resize) { W._resize = true; window.addEventListener("resize", () => placeWheel(false)); }
   }
 
+  /* the jukebox's window: the record on the turntable, what's playing, and the player's buttons */
+  function jxWindow() {
+    const t = Player.current();
+    if (!t) return `<div class="jx-idle">Pick a record below, or ⤨ shuffle everything</div>`;
+    const on = Player.playing, rep = Player.repeat;
+    return `<span class="jx-rec ${on ? "spin" : ""}">${t.has_cover ? `<img alt="" src="/api/items/${t.id}/cover?v=${t.cover_v || 0}">` : ""}</span>
+      <span class="jx-np"><small>NOW PLAYING</small><b>${esc(t.title)}</b><small>${esc([(t.authors || [])[0], t.album].filter(Boolean).join(" · "))}</small></span>
+      <span class="jx-ctl"><button class="jx-b ${Player.shuffle ? "on" : ""}" data-jx="shuffle" title="Shuffle">⤨</button><button class="jx-b" data-jx="prev" title="Previous">⏮</button>
+        <button class="jx-b jx-play" data-jx="toggle" title="Play or pause">${on ? "❚❚" : "▶"}</button><button class="jx-b" data-jx="next" title="Next">⏭</button>
+        <button class="jx-b ${rep !== "off" ? "on" : ""}" data-jx="repeat" title="Repeat">${rep === "one" ? "🔂" : "🔁"}</button></span>`;
+  }
+  addEventListener("player-changed", () => { const w = document.getElementById("jxWindow"); if (w) w.innerHTML = jxWindow(); });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-jx]");
+    if (b) { e.stopPropagation(); ({ shuffle: () => Player.toggleShuffle(), prev: Player.prev, toggle: Player.toggle, next: () => Player.next(), repeat: Player.cycleRepeat })[b.dataset.jx](); return; }
+    if (e.target.closest("[data-jx-queue]")) Player.openQueue();
+  });
+
   /* ---------- album / series panels (in the drawer) ---------- */
   function openAlbum(key) {
     const a = albums(S.items).find((x) => x.key === key);
@@ -350,7 +373,7 @@ window.Media = (() => {
       const qa = e.target.closest("[data-queue-album]");
       const qt = e.target.closest("[data-queue-track]");
       const all = e.target.closest("[data-shuffle-all]");
-      const al = e.target.closest("[data-album]");
+      const al = !b && !qa && e.target.closest("[data-album]");
       const se = e.target.closest("[data-series]");
       if (all) {
         const t = allTracks();

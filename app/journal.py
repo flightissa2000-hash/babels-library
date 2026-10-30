@@ -26,14 +26,22 @@ CREATE TABLE IF NOT EXISTS journal (
 );
 CREATE INDEX IF NOT EXISTS journal_log ON journal(log_id);
 """
-KINDS = ("book", "movie", "show", "game", "other")
+KINDS = ("book", "movie", "show", "game", "other", "writing")      # (writing: the writing notebook's pages)
 STATUSES = ("finished", "reading", "hold", "dropped", "")
 with store._lock:
     store._db.executescript(SCHEMA)
     if "status" not in {r[1] for r in store._db.execute("PRAGMA table_info(media_log)")}:
         store._db.execute("ALTER TABLE media_log ADD COLUMN status TEXT")
         store._db.execute("UPDATE media_log SET status='finished' WHERE finished IS NOT NULL AND finished<>''")
+    if "profile_id" not in {r[1] for r in store._db.execute("PRAGMA table_info(media_log)")}:
+        store._db.execute("ALTER TABLE media_log ADD COLUMN profile_id INTEGER DEFAULT 1")     # whose journal it is
     store._db.commit()
+
+
+def _mine():
+    """Each profile keeps its own journal (the app itself, with no profile, sees all of them)."""
+    pid = store.profile()
+    return ("", ()) if pid is None else (" AND profile_id=?", (pid,))
 
 
 def _q(sql, args=(), one=False, commit=False):
@@ -49,9 +57,10 @@ def _q(sql, args=(), one=False, commit=False):
 
 # ---------------------------------------------------------------- log
 def list_log():
-    return _q("""SELECT l.*, (SELECT COUNT(*) FROM journal j WHERE j.log_id=l.id) AS entries,
+    w, a = _mine()
+    return _q(f"""SELECT l.*, (SELECT COUNT(*) FROM journal j WHERE j.log_id=l.id) AS entries,
                  (SELECT MAX(created_at) FROM journal j WHERE j.log_id=l.id) AS last_entry
-                 FROM media_log l ORDER BY COALESCE(l.finished, '') DESC, l.id DESC""")
+                 FROM media_log l WHERE 1=1{w} ORDER BY COALESCE(l.finished, '') DESC, l.id DESC""", a)
 
 
 def get_log(log_id):
@@ -89,9 +98,9 @@ def create_log(d):
         raise ValueError("Give it a title.")
     now = time.time()
     d.setdefault("kind", "book")
-    cols = list(d) + ["created_at", "updated_at"]
+    cols = list(d) + ["created_at", "updated_at", "profile_id"]
     return _q(f"INSERT INTO media_log ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
-              tuple(d.values()) + (now, now), commit=True)
+              tuple(d.values()) + (now, now, store.viewer()), commit=True)
 
 
 def update_log(log_id, d):
@@ -120,11 +129,12 @@ def log_kind_for(item):
 
 def log_for_item(item):
     """The log row for a library item (for a TV episode: the row for its show)."""
-    r = _q("SELECT * FROM media_log WHERE item_id=? ORDER BY id LIMIT 1", (item["id"],), one=True)
+    w, a = _mine()
+    r = _q(f"SELECT * FROM media_log WHERE item_id=?{w} ORDER BY id LIMIT 1", (item["id"],) + a, one=True)
     if r or item.get("kind") != "tv" or not item.get("series"):
         return r
     k = norm(item["series"])
-    for row in _q("SELECT * FROM media_log WHERE kind='show'"):
+    for row in _q(f"SELECT * FROM media_log WHERE kind='show'{w}", a):
         if norm(row["title"]) == k:
             return row
     return None
@@ -164,6 +174,12 @@ def update_entry(eid, body):
 def delete_entry(eid):
     _q("DELETE FROM journal WHERE id=?", (eid,), commit=True)
     store.tombstone("journal", eid)
+
+
+def delete_profile(pid):
+    """A profile is removed: its journal goes with it."""
+    for r in _q("SELECT id FROM media_log WHERE profile_id=?", (pid,)):
+        delete_log(r["id"])
 
 
 def detach_item(item_id):

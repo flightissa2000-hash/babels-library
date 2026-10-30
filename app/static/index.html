@@ -45,6 +45,7 @@
   <button class="btn primary" id="addBtn">Add to library</button>
   <button class="icon-btn" id="fsBtn" title="Full screen (F11)" hidden><svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zM14 3h7v7h-2V5h-5zM3 14h2v5h5v2H3zM19 14h2v7h-7v-2h5z"/></svg></button>
   <button class="icon-btn" id="widgetBtn" title="Shrink Babel's Library into the desktop widget" hidden><svg viewBox="0 0 24 24"><path d="M3 4h18v12H3zm2 2v8h14V6zM8 18h8v2H8z"/></svg></button>
+  <button class="icon-btn prof-btn" id="profBtn" title="Switch profile">🦉</button>
   <button class="icon-btn" id="settingsBtn" title="Settings and themes"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9 4l-2.1-.7-.6-1.5 1-2-1.9-1.9-2 1-1.5-.6L13.2 3h-2.4l-.7 2.1-1.5.6-2-1L4.7 6.6l1 2-.6 1.5L3 10.8v2.4l2.1.7.6 1.5-1 2 1.9 1.9 2-1 1.5.6.7 2.1h2.4l.7-2.1 1.5-.6 2 1 1.9-1.9-1-2 .6-1.5 2.1-.7z"/></svg></button>
 </header>
 
@@ -179,6 +180,7 @@
       <option value="top-right">Top right</option><option value="top-left">Top left</option>
       <option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option>
       <option value="custom">Where I put it</option></select></label>
+    <label><input type="checkbox" id="startWithWindows"> Start Babel's Library when Windows starts <span class="hint">(it waits for the library's drive to be plugged in)</span></label>
     <label><input type="checkbox" name="main_fullscreen"> Open Babel's Library full screen on start</label>
     <label><input type="checkbox" name="widget_autohide"> Hide the widget's title bar until you point at its top edge</label>
     <div class="full row"><button class="btn" type="button" id="showWidget">Switch to the widget</button><span class="hint">Babel's Library is either this full window or the widget. Drag the widget by its title bar, then use its pin to fix it in place. Other windows can sit in front of it. Double-click it to come back here full screen.</span></div>
@@ -279,7 +281,7 @@
 <div class="player" id="player" hidden>
   <div class="pl-cover" id="plCover"></div>
   <div class="pl-meta"><b id="plTitle"></b><span id="plArtist"></span></div>
-  <div class="pl-ctl"><button class="icon-btn" id="plShuf" title="Shuffle" aria-pressed="false">⤨</button><button class="icon-btn" id="plPrev" title="Previous">⏮</button><button class="icon-btn pl-big" id="plPlay" title="Play or pause">▶</button><button class="icon-btn" id="plNext" title="Next">⏭</button></div>
+  <div class="pl-ctl"><button class="icon-btn" id="plShuf" title="Shuffle" aria-pressed="false">⤨</button><button class="icon-btn" id="plRep" title="Repeat">🔁</button><button class="icon-btn" id="plPrev" title="Previous">⏮</button><button class="icon-btn pl-big" id="plPlay" title="Play or pause">▶</button><button class="icon-btn" id="plNext" title="Next">⏭</button></div>
   <input type="range" id="plSeek" min="0" max="0" step="0.1" value="0" aria-label="Position"><span class="pl-time" id="plTime">0:00</span>
   <select id="plRate" class="pl-rate" title="Audiobook speed" hidden><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option><option value="2.5">2.5×</option><option value="3">3×</option><option value="3.5">3.5×</option><option value="4">4×</option><option value="4.5">4.5×</option><option value="5">5×</option></select>
   <input type="range" id="plVol" min="0" max="1" step="0.01" value="1" aria-label="Volume" class="pl-vol">
@@ -335,6 +337,7 @@
 <script src="js/player.js"></script>
 <script src="js/media.js"></script>
 <script src="js/app.js"></script>
+<script src="js/profiles.js"></script>
 <script src="js/inbrowser.js"></script>
 <script src="js/news.js"></script>
 <script src="js/collections.js"></script>

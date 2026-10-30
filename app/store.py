@@ -153,6 +153,9 @@ DEFAULT_SETTINGS = {
     "mini_h": 760,
     "calibre_dir": os.path.join(os.path.expanduser("~"), "Calibre Library"),
     "analysis_version": 1,
+    "copies_merged": 0,
+    "desktop_profile": 1,     # who's using this computer (profiles)
+    "bulletin": {},           # each profile's challenge of the week, the same on every device       # files merged into the physical copies they were added beside (once)
     "reader_mode": {},
     "reader_width": {},
 }
@@ -167,7 +170,121 @@ ITEM_FIELDS = (
     "duration", "series_index", "locked", "format", "watched", "watched_at",
     "audio_dir", "audio_status", "audio_pos", "wanted",
     "expires_at",          # a web page saved for 30 days: when it's due (the app asks before anything is removed)
+    "private_to",          # a profile's own: only that profile sees it
 )
+
+
+# ---------- profiles ----------
+# A request is answered as one profile (the computer's chosen one, or the one a phone is logged in as): it sees its
+# own places in books, its notes and journal, and not what other profiles have hidden. The app's own work in the
+# background (sorting, covers, catalogues) has no profile and sees everything, with the first profile's places.
+OWNER = 1
+PF = ("progress", "last_location", "opened_at", "watched", "watched_at", "audio_pos", "favorite")
+PF0 = {"progress": 0, "last_location": None, "opened_at": None, "watched": 0, "watched_at": None, "audio_pos": None, "favorite": 0}
+_ctx = threading.local()
+
+
+def use_profile(pid):
+    _ctx.pid = int(pid) if pid else None
+
+
+def profile():
+    """The profile this request is for (None: the app itself)."""
+    return getattr(_ctx, "pid", None)
+
+
+def viewer():
+    return profile() or OWNER
+
+
+def desktop_profile():
+    try:
+        pid = int(get_settings().get("desktop_profile") or OWNER)
+    except (TypeError, ValueError):
+        pid = OWNER
+    return pid if get_profile(pid) else OWNER
+
+
+def list_profiles():
+    with _lock:
+        return [dict(r) for r in _db.execute("SELECT * FROM profiles ORDER BY id")]
+
+
+def get_profile(pid):
+    with _lock:
+        r = _db.execute("SELECT * FROM profiles WHERE id=?", (pid,)).fetchone()
+    return dict(r) if r else None
+
+
+def create_profile(name, face=""):
+    name = (name or "").strip()[:40]
+    if not name:
+        raise ValueError("Give the profile a name.")
+    with _lock:
+        cur = _db.execute("INSERT INTO profiles (name, face, created_at) VALUES (?,?,?)", (name, (face or "")[:8], time.time()))
+        _db.commit()
+    return get_profile(cur.lastrowid)
+
+
+def update_profile(pid, data):
+    with _lock:
+        if (data.get("name") or "").strip():
+            _db.execute("UPDATE profiles SET name=? WHERE id=?", (data["name"].strip()[:40], pid))
+        if data.get("face"):
+            _db.execute("UPDATE profiles SET face=? WHERE id=?", (str(data["face"])[:8], pid))
+        _db.commit()
+    return get_profile(pid)
+
+
+def delete_profile(pid):
+    """A profile goes, with its places and notes (its journal goes in journal.py). What it had hidden becomes the
+    first profile's: never shown to everyone."""
+    pid = int(pid)
+    if pid == OWNER:
+        raise ValueError("The first profile stays.")
+    with _lock:
+        _db.execute("DELETE FROM profile_progress WHERE profile_id=?", (pid,))
+        for r in _db.execute("SELECT id FROM annotations WHERE profile_id=?", (pid,)).fetchall():
+            _db.execute("INSERT OR REPLACE INTO tombstones (kind, ref_id, ts) VALUES ('annotation',?,?)", (r["id"], time.time()))
+        _db.execute("DELETE FROM annotations WHERE profile_id=?", (pid,))
+        _db.execute("UPDATE items SET private_to=?, updated_at=? WHERE private_to=?", (OWNER, time.time(), pid))
+        _db.execute("DELETE FROM profiles WHERE id=?", (pid,))
+        _db.commit()
+
+
+def visible(it, pid=None):
+    """May this profile see the item? (A hidden one is its own profile's alone.)"""
+    pid = pid if pid is not None else profile()
+    return pid is None or not it.get("private_to") or int(it["private_to"]) == pid
+
+
+def _overlay(items, pid):
+    """Another profile's own places, finished marks and favourites, in place of the first profile's."""
+    if not pid or pid == OWNER or not items:
+        return items
+    with _lock:
+        rows = _db.execute("SELECT item_id, field, value FROM profile_progress WHERE profile_id=?", (pid,)).fetchall()
+    mine = {}
+    for r in rows:
+        try:
+            mine.setdefault(r["item_id"], {})[r["field"]] = json.loads(r["value"]) if r["value"] is not None else None
+        except Exception:
+            pass
+    for it in items:
+        it.update(PF0)
+        it.update(mine.get(it["id"], {}))
+        if isinstance(it.get("audio_pos"), str):
+            try:
+                it["audio_pos"] = json.loads(it["audio_pos"])
+            except Exception:
+                it["audio_pos"] = None
+    return items
+
+
+def progress_changed_since(pid, ts):
+    """Items whose places (for this profile) changed after ts: phones fetch those again."""
+    with _lock:
+        return {r[0] for r in _db.execute("SELECT DISTINCT item_id FROM profile_progress WHERE profile_id=? AND ts>?", (pid, ts))}
 
 
 def conn():
@@ -205,6 +322,19 @@ with _lock:
                    ("updated_at", "REAL"), ("expires_at", "REAL")):
         if _c not in _cols:
             _db.execute(f"ALTER TABLE items ADD COLUMN {_c} {_t}")
+    if "private_to" not in _cols:
+        _db.execute("ALTER TABLE items ADD COLUMN private_to INTEGER")       # hidden from every profile but this one
+    # profiles: everyone who uses the library. The first ("Me") keeps its places in the items themselves (as it
+    # always has); every other profile's places, finished marks and favourites are kept in profile_progress
+    _db.executescript("""
+CREATE TABLE IF NOT EXISTS profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, face TEXT DEFAULT '', created_at REAL);
+CREATE TABLE IF NOT EXISTS profile_progress (profile_id INTEGER NOT NULL, item_id INTEGER NOT NULL, field TEXT NOT NULL, value TEXT, ts REAL NOT NULL,
+  PRIMARY KEY (profile_id, item_id, field));
+""")
+    if not _db.execute("SELECT 1 FROM profiles").fetchone():
+        _db.execute("INSERT INTO profiles (id, name, face, created_at) VALUES (1, 'Me', ?, ?)", ("\U0001F989", time.time()))
+    if "profile_id" not in {r[1] for r in _db.execute("PRAGMA table_info(annotations)")}:
+        _db.execute("ALTER TABLE annotations ADD COLUMN profile_id INTEGER DEFAULT 1")
     _db.execute("UPDATE items SET updated_at=COALESCE(opened_at, added_at, 0) WHERE updated_at IS NULL")
     _db.execute("CREATE INDEX IF NOT EXISTS idx_items_upd ON items(updated_at)")
     _db.commit()
@@ -257,21 +387,25 @@ def count_status(status):
 
 
 def list_items():
+    pid = profile()
     with _lock:
-        rows = _db.execute("SELECT i.*, (SELECT COUNT(*) FROM annotations a WHERE a.item_id=i.id) AS ann_count, (SELECT group_concat(collection_id) FROM collection_items c WHERE c.item_id=i.id) AS coll FROM items i ORDER BY added_at DESC").fetchall()
-    return [_row_item(r) for r in rows]
+        rows = _db.execute("SELECT i.*, (SELECT COUNT(*) FROM annotations a WHERE a.item_id=i.id AND (? IS NULL OR a.profile_id=?)) AS ann_count, (SELECT group_concat(collection_id) FROM collection_items c WHERE c.item_id=i.id) AS coll FROM items i ORDER BY added_at DESC", (pid, pid)).fetchall()
+    return _overlay([it for it in (_row_item(r) for r in rows) if visible(it, pid)], pid)
 
 
 def get_item(item_id, raw=False):
     with _lock:
-        r = _db.execute("SELECT i.*, (SELECT COUNT(*) FROM annotations a WHERE a.item_id=i.id) AS ann_count, (SELECT group_concat(collection_id) FROM collection_items c WHERE c.item_id=i.id) AS coll FROM items i WHERE id=?", (item_id,)).fetchone()
+        r = _db.execute("SELECT i.*, (SELECT COUNT(*) FROM annotations a WHERE a.item_id=i.id AND (? IS NULL OR a.profile_id=?)) AS ann_count, (SELECT group_concat(collection_id) FROM collection_items c WHERE c.item_id=i.id) AS coll FROM items i WHERE id=?", (profile(), profile(), item_id)).fetchone()
     if raw:
         if not r:
             return None
         d = dict(r)
         d["file_path"] = path_from_db(d.get("file_path"))
         return d
-    return _row_item(r)
+    it = _row_item(r)
+    if it is None or not visible(it):
+        return None
+    return _overlay([it], profile())[0]
 
 
 def find_dupe(doi=None, isbn=None, title=None):
@@ -334,7 +468,16 @@ def create_item(data):
 
 
 def update_item(item_id, data, clock=None):
-    """clock: when the change was made (a phone's edit arriving later); now if not given."""
+    """clock: when the change was made (a phone's edit arriving later); now if not given. For a profile other than
+    the first, its own places, finished marks and favourites are kept as its own (profile_progress)."""
+    pid = profile()
+    if pid and pid != OWNER and any(f in data for f in PF):
+        now = time.time()
+        with _lock:
+            _db.executemany("INSERT OR REPLACE INTO profile_progress (profile_id, item_id, field, value, ts) VALUES (?,?,?,?,?)",
+                            [(pid, item_id, f, json.dumps(_enc(f, data[f]) if f != "audio_pos" else data[f]), clock or now) for f in PF if f in data])
+            _db.commit()
+        data = {k: v for k, v in data.items() if k not in PF}
     cols = [f for f in ITEM_FIELDS if f in data]
     if not cols:
         return
@@ -348,9 +491,12 @@ def update_item(item_id, data, clock=None):
 
 
 def item_clocks(item_ids=None):
-    """{item_id: {field: ts}} for the fields phones can change."""
+    """{item_id: {field: ts}} for the fields phones can change (a profile's own places: its own times)."""
+    pid = profile()
     with _lock:
         rows = _db.execute("SELECT item_id, field, ts FROM item_clock").fetchall()
+        if pid and pid != OWNER:
+            rows = [r for r in rows if r["field"] not in PF] + _db.execute("SELECT item_id, field, ts FROM profile_progress WHERE profile_id=?", (pid,)).fetchall()
     out = {}
     for r in rows:
         if item_ids is None or r["item_id"] in item_ids:
@@ -462,11 +608,13 @@ def _row_ann(r):
 
 
 def list_annotations(item_id=None):
+    """Notes and highlights: a profile's own (the app itself sees them all)."""
+    pid = profile()
     with _lock:
         if item_id is None:
-            rows = _db.execute("SELECT * FROM annotations ORDER BY item_id, created_at").fetchall()
+            rows = _db.execute("SELECT * FROM annotations WHERE (? IS NULL OR profile_id=?) ORDER BY item_id, created_at", (pid, pid)).fetchall()
         else:
-            rows = _db.execute("SELECT * FROM annotations WHERE item_id=? ORDER BY created_at", (item_id,)).fetchall()
+            rows = _db.execute("SELECT * FROM annotations WHERE item_id=? AND (? IS NULL OR profile_id=?) ORDER BY created_at", (item_id, pid, pid)).fetchall()
     return [_row_ann(r) for r in rows]
 
 
@@ -474,9 +622,9 @@ def create_annotation(item_id, data):
     now = time.time()
     with _lock:
         cur = _db.execute(
-            "INSERT INTO annotations (item_id,title,note,quote,color,locator,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO annotations (item_id,title,note,quote,color,locator,created_at,updated_at,profile_id) VALUES (?,?,?,?,?,?,?,?,?)",
             (item_id, data.get("title", "") or "", data.get("note", "") or "", data.get("quote", "") or "",
-             data.get("color", "yellow"), json.dumps(data.get("locator", {})), now, now))
+             data.get("color", "yellow"), json.dumps(data.get("locator", {})), now, now, viewer()))
         _db.commit()
         r = _db.execute("SELECT * FROM annotations WHERE id=?", (cur.lastrowid,)).fetchone()
     return _row_ann(r)

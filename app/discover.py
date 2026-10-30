@@ -59,8 +59,12 @@ def _cached(key, ttl, fn):
     if hit and time.time() - hit[0] < ttl:
         return hit[1]
     val = fn()
+    # nothing came back (a site timed out, say): keep the list we had, or ask again next time rather than for a day
+    empty = val in ([], {}) or (isinstance(val, dict) and val.get("items") == [])
+    if empty and hit and hit[1] not in ([], {}):
+        return hit[1]
     with _cache_lock:
-        _cache[key] = (time.time(), val)
+        _cache[key] = (0 if empty else time.time(), val)
     if _save_timer is None:
         _save_timer = threading.Timer(3, _save_cache)
         _save_timer.daemon = True

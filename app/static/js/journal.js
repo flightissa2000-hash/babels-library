@@ -3,10 +3,16 @@
    its details on the left, your dated entries on the right. Pages turn; thumb tabs jump to a section. */
 const Journal = (() => {
   const J = { rows: [], loaded: false, status: "all", q: "", spread: 0, cache: new Map(), byItem: new Map(), previewUrl: null, photos: new Map() };
-  const KIND_NAMES = { book: "Books", movie: "Films", show: "Shows", game: "Games", other: "Other" };
-  const KIND_ONE = { book: "Book", movie: "Film", show: "Show", game: "Game", other: "Other" };
-  const KIND_ICON = { book: "📖", movie: "🎬", show: "📺", game: "🎮", other: "✦" };
-  const KIND_TAB = { book: "#9fd18b", movie: "#f2b06b", show: "#b9a3e8", game: "#8fc9e8", other: "#e8a3b6" };
+  const KIND_NAMES = { book: "Books", movie: "Films", show: "Shows", game: "Games", other: "Other", writing: "Writing" };
+  const KIND_ONE = { book: "Book", movie: "Film", show: "Show", game: "Game", other: "Other", writing: "Writing" };
+  const KIND_ICON = { book: "📖", movie: "🎬", show: "📺", game: "🎮", other: "✦", writing: "✍" };
+  const KIND_TAB = { book: "#9fd18b", movie: "#f2b06b", show: "#b9a3e8", game: "#8fc9e8", other: "#e8a3b6", writing: "#a9c4e6" };
+  /* two notebooks: the review journal (what you read and watch), and the writing notebook (anything else: ideas,
+     drafts, and the quick notes collected from the phone). The writing notebook's pages are kind "writing". */
+  let BOOK = "reviews";
+  try { BOOK = localStorage.getItem("inkwell-jbook") === "writing" ? "writing" : "reviews"; } catch (e) {}
+  const W = () => BOOK === "writing";
+  const inBookRows = () => J.rows.filter((r) => (r.kind === "writing") === W());
   const STATUS = { finished: "Finished", reading: "Reading", hold: "On hold", dropped: "Dropped" };
   // contents lines that fit on a page (the book is as tall as the window allows)
   const linesPerPage = () => {
@@ -56,9 +62,9 @@ const Journal = (() => {
   /* ---------------- the pages ---------------- */
   function visibleRows() {
     const q = (J.q || "").toLowerCase().trim();
-    return J.rows.filter((r) => (J.status === "all" || statusOfRow(r) === J.status) && (!q || (r.title || "").toLowerCase().includes(q)));
+    return inBookRows().filter((r) => (W() || J.status === "all" || statusOfRow(r) === J.status) && (!q || (r.title || "").toLowerCase().includes(q)));
   }
-  const ORDER = ["book", "movie", "show", "game", "other"];
+  const ORDER = ["book", "movie", "show", "game", "other", "writing"];
   const sortRows = (a, b) => (b.finished || "").localeCompare(a.finished || "") || (a.title || "").localeCompare(b.title || "");
 
   /* pages: [{type:"intro"}, {type:"toc", lines}, ..., {type:"info", row}, {type:"notes", row}, ...] */
@@ -81,8 +87,8 @@ const Journal = (() => {
     }
     const pages = [{ type: "intro" }, ...tocPages.map((l) => ({ type: "toc", lines: l }))];
     if (pages.length % 2) pages.push({ type: "blank" });   // every title starts on a left page
-    J.yearPage = pages.length;   // the year in review: a spread of its own, right after the contents
-    pages.push({ type: "yearl" }, { type: "yearr" });
+    J.yearPage = W() ? 0 : pages.length;   // the year in review: a spread of its own, right after the contents
+    if (!W()) pages.push({ type: "yearl" }, { type: "yearr" });
     J.pageOf = new Map();
     J.kindPage = {};
     for (const k of kinds) {
@@ -112,6 +118,14 @@ const Journal = (() => {
   }
 
   function introPage() {
+    if (W()) {
+      const rows = inBookRows();
+      return `<h1 class="jb-h1">WRITING NOTEBOOK</h1>
+        <div class="jb-sub">ideas, drafts, plans, and the quick notes from your phone</div>
+        <label class="jb-search"><span>⌕</span><input id="jbSearch" value="${esc(J.q)}" placeholder="write a title to find it…" autocomplete="off"></label>
+        <div class="jb-count">${rows.length} ${rows.length === 1 ? "PAGE" : "PAGES"} · ${rows.reduce((n, r) => n + (r.entries || 0), 0)} ENTRIES</div>
+        <div class="jb-actions"><button class="jb-ink" data-jw-new>＋ A new page</button><button class="jb-ink" data-jb-book="reviews">📔 The review journal</button></div>`;
+    }
     const year = String(new Date().getFullYear());
     const cnt = (k, s) => J.rows.filter((r) => r.kind === k && (!s || (r.finished || "").startsWith(year))).length;
     const st = (s) => J.rows.filter((r) => statusOfRow(r) === s).length;
@@ -124,7 +138,7 @@ const Journal = (() => {
       </div>
       <div class="jb-filter">${[["all", "Everything", J.rows.length], ["finished", "Finished", st("finished")], ["reading", "Reading", st("reading")], ["hold", "On hold", st("hold")], ["dropped", "Dropped", st("dropped")]]
         .map(([v, l, n]) => `<button class="jb-chip ${J.status === v ? "on" : ""}" data-jb-status="${v}">${l} <small>${n}</small></button>`).join("")}</div>
-      <div class="jb-actions"><button class="jb-ink" data-jr-new>＋ Log something new</button><button class="jb-ink" data-jr-import>Import from Obsidian…</button></div>`;
+      <div class="jb-actions"><button class="jb-ink" data-jr-new>＋ Log something new</button><button class="jb-ink" data-jr-import>Import from Obsidian…</button><button class="jb-ink" data-jb-book="writing">✍ The writing notebook</button></div>`;
   }
 
   function tocPage(lines) {
@@ -149,7 +163,9 @@ const Journal = (() => {
     const cover = lib && lib.has_cover ? `<img src="/api/items/${lib.id}/cover?v=${lib.cover_v || 0}" alt="">` : "";
     return `<div class="jb-kick">${KIND_ICON[r.kind] || "✦"} ${(KIND_ONE[r.kind] || "Entry").toUpperCase()}</div>
       <textarea class="jb-title" data-jb-field="title" rows="2" spellcheck="false">${esc(r.title)}</textarea>
-      <div class="jb-stamps">${Object.entries(STATUS).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jb-setstatus="${k}">${l}</button>`).join("")}</div>
+      ${r.kind === "writing" ? `<div class="jb-fields"><label><span>Begun</span><em>${esc(new Date((r.created_at || 0) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</em></label>
+        <label><span>Link</span><input data-jb-field="link" value="${esc(r.link || "")}" placeholder="https://…"></label></div>${figsHTML(r.id)}
+        <button class="jb-remove" data-jb-del="${r.id}">tear out this page</button>` : `<div class="jb-stamps">${Object.entries(STATUS).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jb-setstatus="${k}">${l}</button>`).join("")}</div>
       ${cover ? `<div class="jb-photo">${cover}<span class="jb-tape"></span></div>` : ""}
       <div class="jb-fields">
         <label><span>Type</span><select data-jb-field="kind">${Object.keys(KIND_ONE).map((k) => `<option value="${k}" ${k === r.kind ? "selected" : ""}>${KIND_ONE[k]}</option>`).join("")}</select></label>
@@ -159,7 +175,7 @@ const Journal = (() => {
       </div>
       ${r.kind === "other" ? figsHTML(r.id) : ""}
       ${lib ? `<div class="jb-lib">In your library: <b>${esc(lib.title)}</b><span><button class="jb-mini" data-jb-lib="${lib.id}">details</button>${lib.has_file ? `<button class="jb-mini" data-read="${lib.id}">${["movie", "tv"].includes(lib.kind) ? "watch" : "read"}</button>` : ""}</span></div>` : ""}
-      <button class="jb-remove" data-jb-del="${r.id}">remove from the journal</button>`;
+      <button class="jb-remove" data-jb-del="${r.id}">remove from the journal</button>`}`;
   }
 
   function notesPage(r) {
@@ -387,7 +403,8 @@ const Journal = (() => {
 
   /* ---------------- the book itself ---------------- */
   function bookHTML() {
-    const tabs = [["contents", "Contents", "#f3e7c4"], ["year", "Year in review", "#f2d27a"], ...J.kinds.map((k) => [k, KIND_NAMES[k], KIND_TAB[k]])];
+    const tabs = [["contents", "Contents", "#f3e7c4"], ...(W() ? [] : [["year", "Year in review", "#f2d27a"]]), ...J.kinds.filter((k) => !W() || k !== "writing").map((k) => [k, KIND_NAMES[k], KIND_TAB[k]]),
+      W() ? ["@reviews", "📔 Reviews", "#e9d9b0"] : ["@writing", "✍ Writing", KIND_TAB.writing]];
     return `<div class="jb-book" tabindex="0">
       <div class="jb-cover"></div>
       <div class="jb-spread"><div class="jb-side jb-l"></div><div class="jb-side jb-r"></div></div>
@@ -540,6 +557,8 @@ const Journal = (() => {
     await load();
     J.status = "all"; J.q = "";
     J.modal = true;
+    const lr = logId && J.rows.find((r) => r.id === logId);
+    if (lr) BOOK = lr.kind === "writing" ? "writing" : "reviews";        // (in whichever notebook it's in)
     buildPages();
     const m = floatWin();
     const already = m.classList.contains("open");
@@ -554,7 +573,7 @@ const Journal = (() => {
     if (!already && !window.matchMedia("(prefers-reduced-motion: reduce)").matches && window.innerWidth >= 820) {
       const lid = document.createElement("div");
       lid.className = "jb-lid";
-      lid.innerHTML = `<div class="jb-lid-front"><span class="jb-lid-rule"></span><b>REVIEW<br>JOURNAL</b><span class="jb-lid-rule"></span><em>Babel's Library</em></div><div class="jb-lid-back"></div>`;
+      lid.innerHTML = `<div class="jb-lid-front"><span class="jb-lid-rule"></span><b>${W() ? "WRITING<br>NOTEBOOK" : "REVIEW<br>JOURNAL"}</b><span class="jb-lid-rule"></span><em>Babel's Library</em></div><div class="jb-lid-back"></div>`;
       book.querySelector(".jb-spread").append(lid);
       book.classList.add("opening");
       lid.addEventListener("animationend", (e) => { if (e.target === lid) { book.classList.remove("opening"); lid.remove(); } });
@@ -679,6 +698,26 @@ const Journal = (() => {
     }
     d.querySelector("#jrImpFolder").value = (S.settings && S.settings.obsidian_folder) || "";
     d.querySelector("#jrImpOut").innerHTML = "";
+    d.showModal();
+  }
+  /* the writing notebook: a new page, asked for in a small card */
+  function newPage() {
+    const d = document.createElement("dialog"); d.className = "dlg";
+    d.innerHTML = `<form method="dialog" class="jw-new"><div class="dlg-head"><h2>A new page</h2></div>
+      <label class="full">What's it about?<input name="t" placeholder="An idea, a plan, a draft, a trip…" style="width:100%" required></label>
+      <div class="row" style="margin-top:12px;justify-content:flex-end;gap:8px"><button class="btn" value="no" formnovalidate>Cancel</button><button class="btn primary" value="ok">Add the page</button></div></form>`;
+    document.body.append(d);
+    d.addEventListener("close", async () => {
+      const title = d.querySelector("[name=t]").value.trim(), ok = d.returnValue === "ok";
+      d.remove();
+      if (!ok || !title) return;
+      try {
+        const r = await api.send("POST", "/api/log", { title, kind: "writing", status: "" });
+        J.q = ""; await load(); buildPages();
+        const p = J.pageOf.get(r.id);
+        if (p != null) { if (!host() || (!$("#jbModal.open") && S.area !== "journal")) return open(r.id); goSpread(Math.floor(p / 2), 1); }
+      } catch (err) { toast(err.message, "error"); }
+    });
     d.showModal();
   }
   async function newEntry() {
@@ -837,6 +876,13 @@ const Journal = (() => {
       return;
     }
     if (t.closest("[data-jr-new]")) return newEntry();
+    if (t.closest("[data-jw-new]")) return newPage();
+    const bk = t.closest("[data-jb-book]") || (t.closest("[data-jb-tab]") && t.closest("[data-jb-tab]").dataset.jbTab.startsWith("@") && t.closest("[data-jb-tab]"));
+    if (bk) {             // the other notebook
+      BOOK = (bk.dataset.jbBook || bk.dataset.jbTab.slice(1)) === "writing" ? "writing" : "reviews";
+      try { localStorage.setItem("inkwell-jbook", BOOK); } catch (e) {}
+      J.q = ""; buildPages(); J.spread = 0; host().innerHTML = bookHTML(); return paintSpread(0);
+    }
     if (t.closest("[data-jr-import]")) return importDialog();
     // ---- photos (figures) ----
     const fr = t.closest(".jb-figref");

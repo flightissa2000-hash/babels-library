@@ -117,7 +117,7 @@ function sortItems(arr) {
 
 // the Books area splits graphic novels into manga and (western) comics
 // an article saved from the web, or one from a news outlet (and no DOI), is a news story; the rest are papers
-const isNewsStory = (it) => it.kind === "article" && (it.source === "web" || (!it.doi && /news|times|post|guardian|bbc|npr|reuters|apnews|propublica|tribune|herald|gazette|journal\.com|magazine|patch\.com|phys\.org|sciencedaily/i.test((it.url || "") + " " + (it.journal || ""))));
+const isNewsStory = (it) => it.kind === "article" && (it.source === "web" || (it.source !== "paper" && !it.doi && /news|times|post|guardian|bbc|npr|reuters|apnews|propublica|tribune|herald|gazette|journal\.com|magazine|patch\.com|phys\.org|sciencedaily/i.test((it.url || "") + " " + (it.journal || ""))));
 const kindMatches = (it, k) => k === "manga" ? it.kind === "graphic" && it.format === "manga"
   : k === "comic" ? it.kind === "graphic" && it.format !== "manga"
   : k === "paper" ? it.kind === "article" && !isNewsStory(it) : k === "news" ? isNewsStory(it) : it.kind === k;
@@ -199,16 +199,19 @@ function grouped() {
   return groups;
 }
 
-/* series can be folded away in the library; remembered per series */
-function seriesFolded(k) { try { return JSON.parse(localStorage.getItem("inkwell-folded") || "[]").includes(k); } catch (e) { return false; } }
+/* a series is one stack in the library until you open it out; the ones opened out are remembered */
+const openedSeries = () => { try { return JSON.parse(localStorage.getItem("inkwell-unfolded") || "[]"); } catch (e) { return []; } };
+function seriesFolded(k) { return !openedSeries().includes(k); }
 function toggleSeriesFold(k) {
-  let f = [];
-  try { f = JSON.parse(localStorage.getItem("inkwell-folded") || "[]"); } catch (e) {}
+  let f = openedSeries();
   f = f.includes(k) ? f.filter((x) => x !== k) : [...f, k];
-  try { localStorage.setItem("inkwell-folded", JSON.stringify(f)); } catch (e) {}
+  try { localStorage.setItem("inkwell-unfolded", JSON.stringify(f)); } catch (e) {}
   const el = document.querySelector(`.heist-series[data-series-key="${CSS.escape(k)}"]`);
-  if (el) { el.classList.toggle("folded", f.includes(k)); el.querySelector(".hs-head").setAttribute("aria-expanded", String(!f.includes(k))); }
+  if (el) { el.classList.toggle("folded", !f.includes(k)); el.querySelector(".hs-head").setAttribute("aria-expanded", String(f.includes(k))); }
+  else renderLib();
 }
+// the book a folded series shows on top of its stack: the next one to read
+const seriesNext = (run) => run.find((x) => jstat(x) !== "finished" && !(x.progress > 0.97)) || run[0];
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-fold-series],[data-fold-open]");
   if (!b) return;
@@ -280,8 +283,13 @@ const VIEWS = {
       <section class="cdrawer ${items.length > 4 ? "wide" : ""}" style="--n:${Math.min(items.length, 12)}">
         <div class="cfront"><span class="clabel"><b>${esc(name)}</b><small>${items.length} card${items.length === 1 ? "" : "s"}</small></span><span class="cpull"></span></div>
         <div class="cstack">
-          ${items.map((it, i) => `<button class="icard ${i === 0 ? "open" : ""} ${inSeries(it) ? "in-series" : ""}" data-open="${it.id}" style="--i:${i};--c:${colorFor(it)};--sh:${inSeries(it) ? seriesHue(it.series) : 0}">
-            <span class="ic-head"><span class="ic-call">${call(it)}</span><span class="ic-title">${esc(it.title || "Untitled")}</span>${inSeries(it) ? `<span class="ic-series">${esc(it.series)}${it.series_index ? ` · ${+it.series_index}` : ""}</span>` : ""}${it.audio_status === "ready" ? `<span class="ic-ab" title="Audiobook available">🎧</span>` : ""}</span>
+          ${seriesRuns(items).flatMap((run) => {
+            // a series is one card (the next to read) with the rest stacked behind it, until opened out
+            if (run.length < 2) return run.map((it) => [it, null]);
+            const k = seriesKey(run[0].series);
+            return seriesFolded(k) ? [[seriesNext(run), { k, n: run.length, shut: true }]] : run.map((it, j) => [it, j === 0 ? { k, n: run.length, shut: false } : null]);
+          }).map(([it, st], i) => `<button class="icard ${i === 0 ? "open" : ""} ${inSeries(it) ? "in-series" : ""} ${st && st.shut ? "stack" : ""}" data-open="${it.id}" style="--i:${i};--c:${colorFor(it)};--sh:${inSeries(it) ? seriesHue(it.series) : 0}">
+            <span class="ic-head"><span class="ic-call">${call(it)}</span><span class="ic-title">${esc(it.title || "Untitled")}</span>${inSeries(it) ? `<span class="ic-series">${esc(it.series)}${it.series_index ? ` · ${+it.series_index}` : ""}</span>` : ""}${st ? `<span class="ic-stackn" data-fold-series="${esc(st.k)}" title="${st.shut ? "Show every book in this series" : "Stack this series back up"}">${st.shut ? `📚 ${st.n} in series ▸` : `▴ stack the ${st.n}`}</span>` : ""}${it.audio_status === "ready" ? `<span class="ic-ab" title="Audiobook available">🎧</span>` : ""}</span>
             <span class="ic-body">
               <span class="ic-thumb">${coverHTML(it)}</span>
               <span class="ic-text">
@@ -401,8 +409,9 @@ const Bulletin = (() => {
   const weekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime() / 1000; };
   const rng = (seed) => { let a = 0; for (const c of String(seed)) a = (a * 31 + c.charCodeAt(0)) >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   const shuffle = (list, r) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const load = () => { try { return JSON.parse(localStorage.getItem("inkwell-challenge") || "null"); } catch (e) { return null; } };
-  const save = (c) => { try { localStorage.setItem("inkwell-challenge", JSON.stringify(c)); } catch (e) {} };
+  let srv;                     // this profile's challenge, as the computer keeps it (shared with its phones)
+  const load = () => srv || null;
+  const save = (c) => { srv = c; api.send("POST", "/api/bulletin", c).catch(() => {}); };
   let picks = null;            // the catalogue's suggestions, fetched once per visit
 
   function finishedAt(it) {
@@ -418,9 +427,12 @@ const Bulletin = (() => {
     const mine = S.items.filter((i) => i.has_file && ["book", "graphic", "tv", "movie", "article"].includes(i.kind) && !(cur && cur.id === i.id && reroll));
     const started = mine.filter((i) => { const s = Wheel.status(i)[0]; return s === "now"; });
     const long = mine.filter((i) => Wheel.status(i)[0] === "done" && finishedAt(i) && finishedAt(i) < Date.now() / 1000 - 180 * DAY);
-    let type = "finish", pool = started;
-    if (!pool.length || (long.length && r() < 0.25)) { type = "revisit"; pool = long; }
-    if (!pool.length) return null;
+    const fresh = mine.filter((i) => !i.opened_at && Wheel.status(i)[0] === "new");
+    // finish what you're partway through; now and then revisit an old favourite or open something never started
+    const pools = [["finish", started], ["revisit", long], ["start", fresh]].filter(([, p]) => p.length);
+    if (!pools.length) { if (reroll) toast("Nothing else to pick right now: start something and it'll turn up here."); return reroll ? cur : null; }
+    let [type, pool] = pools[0];
+    if (pools.length > 1 && r() < (reroll ? 0.5 : 0.25)) [type, pool] = pools[1 + Math.floor(r() * (pools.length - 1))];
     const it = shuffle(pool, r)[0];
     const c = { week: wk, id: it.id, type, draw: (cur && cur.week === wk ? cur.draw || 0 : 0) + (reroll ? 1 : 0), since: it.opened_at || 0 };
     save(c);
@@ -431,26 +443,34 @@ const Bulletin = (() => {
   /* The Bulletin is a glossy weekly magazine: this week's challenge is the cover story; then the catalogue's hottest
      picks, the things on your shelves you haven't opened yet, and the papers waiting to be read */
   function render(lib, tabs) {
+    if (srv === undefined) {
+      return api.get("/api/bulletin").then((b) => {
+        srv = b && b.week ? b : null;
+        if (!srv && (typeof Profiles === "undefined" || Profiles.current() === 1)) {        // (from before profiles)
+          try { srv = JSON.parse(localStorage.getItem("inkwell-challenge") || "null"); } catch (e) {}
+        }
+      }).catch(() => { srv = null; }).then(() => render(lib, tabs));
+    }
     const wk = weekStart(), r = rng("shelf" + wk);
     const c = challenge(), it = c && S.items.find((i) => i.id === c.id);
     const papers = shuffle(S.items.filter((i) => i.kind === "article" && i.has_file && !i.opened_at && !isNewsStory(i)), r).slice(0, 4);
     const wrapped = shuffle(S.items.filter((i) => ["book", "graphic", "movie", "tv"].includes(i.kind) && i.has_file && !i.opened_at && !(it && i.id === it.id)), r).slice(0, 6);
     const when = new Date(wk * 1000).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
     const issue = Math.max(1, Math.round((wk - Date.UTC(2026, 0, 5) / 1000) / (7 * DAY)) + 1);
-    const ch = it ? { it, c, ok: done(c, it), p: pctOf(it), finish: c.type === "finish",
+    const ch = it ? { it, c, ok: done(c, it), p: pctOf(it), finish: c.type === "finish", start: c.type === "start",
       ago: Math.round((Date.now() / 1000 - finishedAt(it)) / (30 * DAY)), by: [Wheel.kindName(it), authorLine(it), it.year].filter(Boolean).join(" · ") } : null;
-    const act = (x) => x.ok ? "" : `<button class="btn primary" data-read="${x.it.id}">${VIDEO_KINDS.includes(x.it.kind) ? "▶ Watch it" : x.finish ? "Finish it" : "Read it again"}</button>`;
+    const act = (x) => x.ok ? "" : `<button class="btn primary" data-read="${x.it.id}">${VIDEO_KINDS.includes(x.it.kind) ? "▶ Watch it" : x.finish ? "Finish it" : x.start ? "Start it" : "Read it again"}</button>`;
     const hook = (x) => x.ok ? (x.finish ? "Done and dusted. Challenge complete." : "Revisited. Challenge complete.")
-      : x.finish ? `${x.p}% read. One week to cross the finish line.` : `Last read ${x.ago} months ago. Time for a second look?`;
-    const head = (x) => x.ok ? "MISSION ACCOMPLISHED" : x.finish ? "THE FINAL STRETCH" : "THE RETURN";
+      : x.finish ? `${x.p}% read. One week to cross the finish line.` : x.start ? "Still in the wrapper. This is the week to open it." : `Last read ${x.ago} months ago. Time for a second look?`;
+    const head = (x) => x.ok ? "MISSION ACCOMPLISHED" : x.finish ? "THE FINAL STRETCH" : x.start ? "FIRST PAGE" : "THE RETURN";
     lib.innerHTML = `<div class="vw hw bt-wrap"><div class="bt btx btx-mag">
       <section class="btm-cover ${ch && ch.ok ? "done" : ""}">${ch ? `<div class="btm-bg">${coverHTML(ch.it)}</div>` : ""}
         <div class="btm-sheen"></div>
         <div class="btm-title"><b>BABEL</b><span>Issue ${issue}<br>${esc(when)}</span></div>
         <div class="btm-ribbon">EXCLUSIVE</div>
-        ${ch ? `<div class="btm-burst">${ch.ok ? "DONE!" : ch.finish ? `${ch.p}%<small>there</small>` : "AGAIN?"}</div>
+        ${ch ? `<div class="btm-burst">${ch.ok ? "DONE!" : ch.finish ? `${ch.p}%<small>there</small>` : ch.start ? "NEW!" : "AGAIN?"}</div>
         <div class="btm-hero" data-detail="${ch.it.id}">${coverHTML(ch.it)}${ch.ok ? `<span class="bt-stamp">✓<b>Done!</b></span>` : ""}</div>
-        <div class="btm-lines"><small>${ch.finish ? "THIS WEEK'S CHALLENGE" : "THE REVISIT ISSUE"}</small><em>${head(ch)}</em><h2>${esc(Wheel.title(ch.it))}</h2>
+        <div class="btm-lines"><small>${ch.finish ? "THIS WEEK'S CHALLENGE" : ch.start ? "THE DEBUT ISSUE" : "THE REVISIT ISSUE"}</small><em>${head(ch)}</em><h2>${esc(Wheel.title(ch.it))}</h2>
           <p class="btm-by">${esc(ch.by)}</p><p class="btm-hook">${esc(hook(ch))}</p>
           ${ch.finish && !ch.ok ? `<div class="btm-meter"><i style="width:${ch.p}%"></i></div>` : ""}
           <div class="d-actions">${act(ch)}<button class="btn" data-bt-reroll>Pick another</button></div></div>`
@@ -835,6 +855,7 @@ async function openDrawer(id, quiet = false) {
       ${["book", "graphic"].includes(it.kind) && !it.has_cover ? `<button class="btn" id="dPullCover" title="Find this book's cover online (Hardcover, then Wikipedia and other catalogues)">Pull cover</button>` : ""}
       ${["book", "graphic"].includes(it.kind) && (S.settings.hardcover_token || "").trim() ? `<button class="btn" id="dHardcover" title="Replace the synopsis, authors, genre, series and year with Hardcover's">Pull info from Hardcover</button>` : ""}
       ${it.has_file && it.kind !== "music" ? `<button class="btn" id="dToPhone" title="Your phone fetches this file the next time its Babel's Library app syncs">📱 Send to phone</button>` : ""}
+      ${typeof Profiles !== "undefined" ? Profiles.drawerToggle(it) : ""}
       <button class="btn" id="dReanalyze">Re-sort and re-tag</button>
       <button class="btn danger" id="dDelete">Remove</button>
     </div>
@@ -1166,6 +1187,7 @@ async function openSettings() {
   $("#dvKeyResult").textContent = "";
   const df = $("#deskForm");
   ["widget_locked", "main_fullscreen"].forEach((k) => df.querySelector(`[name=${k}]`).checked = !!s[k]);
+  api.get("/api/desktop/startup").then((r) => { $("#startWithWindows").checked = !!r.on; }).catch(() => {});
   df.querySelector("[name=widget_autohide]").checked = s.widget_autohide !== false;
   df.querySelector("[name=start_mode]").value = s.start_mode || "full";
   df.querySelector("[name=widget_corner]").value = s.widget_corner || "top-right";
@@ -1443,6 +1465,7 @@ function bind() {
     if (S.desktop) {
       const df = $("#deskForm");
       api.send("POST", "/api/desktop/widget", { action: "lock", value: df.querySelector("[name=widget_locked]").checked });
+      api.send("POST", "/api/desktop/startup", { on: $("#startWithWindows").checked }).catch((e) => toast(e.message, "error"));
       const corner = df.querySelector("[name=widget_corner]").value;
       if (corner !== "custom" && corner !== S.settings.widget_corner) api.send("POST", "/api/desktop/widget", { action: "snap", value: corner });
     }

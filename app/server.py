@@ -236,6 +236,78 @@ def _web_details(kind, item, meta):
 
 
 def analyze_item(item_id, refresh_meta=True, keep_fields=(), merge_tags=False, comicinfo=None):
+    _analyze_item(item_id, refresh_meta, keep_fields, merge_tags, comicinfo)
+    try:
+        merge_copies(item_id)          # (now that its title and ISBN are known)
+    except Exception as e:
+        print("[inkwell] copies not merged:", e)
+
+
+def _last_name(it):
+    a = ((it.get("authors") or [""])[0] or "").replace(",", " ").split()
+    return a[-1].lower() if a else ""
+
+
+def merge_copies(item_id):
+    """A file for a book (or comic) you already have on the shelf as a physical copy, or on your wishlist: the file
+    joins that entry (its journal, notes, collections and place stay together) instead of making a second one.
+    Returns the id the file ended up under."""
+    it = store.get_item(item_id)
+    if not it or not it.get("has_file") or it["kind"] not in ("book", "graphic"):
+        return item_id
+    key = journal.norm(it.get("title") or "")
+    for o in store.list_items():
+        if o["id"] == item_id or o.get("has_file") or o["kind"] != it["kind"] or not (o.get("physical") or o.get("wanted")):
+            continue
+        same_isbn = bool(it.get("isbn")) and str(o.get("isbn") or "").replace("-", "") == str(it["isbn"]).replace("-", "")
+        same_title = len(key) > 3 and journal.norm(o.get("title") or "") == key and (not _last_name(o) or not _last_name(it) or _last_name(o) == _last_name(it))
+        if it.get("kind") == "graphic" and (o.get("series_index") or it.get("series_index")) and o.get("series_index") != it.get("series_index"):
+            continue                    # (a different volume of the same series)
+        if not (same_isbn or same_title):
+            continue
+        raw = store.get_item(item_id, raw=True)
+        fields = {k: raw.get(k) for k in ("file_path", "file_type", "sha256", "orig_name") if raw.get(k) is not None}
+        for k in ("summary", "isbn", "publisher", "year", "genre", "series", "series_index", "format", "direction", "subject", "fiction"):
+            if o.get(k) in (None, "", []) and it.get(k) not in (None, "", []):
+                fields[k] = it[k]
+        if o.get("wanted"):
+            fields["wanted"] = 0        # (the wishlist entry: you have it now)
+        old_raw = store.get_item(o["id"], raw=True)
+        if not old_raw.get("cover_path") and raw.get("cover_path"):
+            src = os.path.join(store.COVERS_DIR, raw["cover_path"])
+            if os.path.exists(src):
+                dst_name = f"{o['id']}{os.path.splitext(raw['cover_path'])[1] or '.jpg'}"
+                shutil.copy2(src, os.path.join(store.COVERS_DIR, dst_name))
+                fields["cover_path"] = dst_name
+        store.update_item(o["id"], fields)
+        store.update_item(item_id, {"file_path": None, "sha256": None})     # (so removing the extra entry can't touch the file)
+        store.delete_item(item_id, delete_file=False)
+        log(f"“{o['title']}”: the new file joined the copy already on your shelf", "import", o["id"])
+        return o["id"]
+    return item_id
+
+
+def merge_all_copies():
+    """Once: physical copies (and wishlist entries) that a file of the same book was added beside, before files
+    found their copy by themselves. The library is backed up first."""
+    if store.get_settings().get("copies_merged"):
+        return
+    pairs = 0
+    try:
+        bk = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "BabelsLibraryBackups")
+        os.makedirs(bk, exist_ok=True)
+        shutil.copy2(store.DB_PATH, os.path.join(bk, time.strftime("library-before-copy-merge-%Y%m%d-%H%M%S.db")))
+        for it in store.list_items():
+            if it.get("has_file") and it["kind"] in ("book", "graphic") and merge_copies(it["id"]) != it["id"]:
+                pairs += 1
+        store.set_settings({"copies_merged": 1})
+        if pairs:
+            print(f"[inkwell] merged {pairs} file(s) into the physical copies already on the shelf")
+    except Exception as e:
+        print("[inkwell] merging copies skipped:", e)
+
+
+def _analyze_item(item_id, refresh_meta=True, keep_fields=(), merge_tags=False, comicinfo=None):
     try:
         raw = store.get_item(item_id, raw=True)
         if not raw:
@@ -690,6 +762,7 @@ class Handler(BaseHTTPRequestHandler):
         host = (self.headers.get("Host") or "").split(":")[0]
         if host not in ("localhost", "127.0.0.1", "[::1]"):
             return self._send(403, {"error": "forbidden"})
+        store.use_profile(store.desktop_profile())      # (this computer's chosen profile)
         try:
             for m, rx, fn in ROUTES:
                 if m == method:
@@ -851,6 +924,9 @@ def r_update(h, iid):
     d = h.json_body()
     d.pop("file_path", None)
     d.pop("cover_path", None)
+    d.pop("private_to", None)
+    if "private" in d:          # "only me": hidden from every other profile (always the profile asking)
+        d["private_to"] = store.viewer() if d.pop("private") else None
     if "opened" in d:
         d["opened_at"] = time.time()
     if "watched" in d:
@@ -883,6 +959,60 @@ def r_update(h, iid):
     it = store.get_item(int(iid))
     it["citations"] = cite.all_citations(it)
     h._send(200, it)
+
+
+# ---- profiles: everyone who uses the library, each with their own places, notes, journal and Bulletin
+@route("GET", r"/api/profiles")
+def r_profiles(h):
+    h._send(200, {"profiles": store.list_profiles(), "current": store.viewer()})
+
+
+@route("POST", r"/api/profiles")
+def r_profile_new(h):
+    d = h.json_body()
+    h._send(200, store.create_profile(d.get("name"), d.get("face") or ""))
+
+
+@route("PATCH", r"/api/profiles/(\d+)")
+def r_profile_edit(h, pid):
+    h._send(200, store.update_profile(int(pid), h.json_body()))
+
+
+@route("DELETE", r"/api/profiles/(\d+)")
+def r_profile_delete(h, pid):
+    pid = int(pid)
+    journal.delete_profile(pid)
+    store.delete_profile(pid)
+    allb = dict(store.get_settings().get("bulletin") or {})
+    if allb.pop(str(pid), None) is not None:          # (its Bulletin goes with it)
+        store.set_settings({"bulletin": allb})
+    if store.desktop_profile() == pid:
+        store.set_settings({"desktop_profile": store.OWNER})
+    h._send(200, {"profiles": store.list_profiles(), "current": store.desktop_profile()})
+
+
+@route("POST", r"/api/profiles/current")
+def r_profile_use(h):
+    """Who's using this computer now."""
+    pid = int(h.json_body().get("id") or store.OWNER)
+    if not store.get_profile(pid):
+        raise ValueError("No such profile.")
+    store.set_settings({"desktop_profile": pid})
+    h._send(200, {"current": pid})
+
+
+# ---- the Bulletin's challenge of the week: kept per profile, so it's the same on the computer and every phone
+@route("GET", r"/api/bulletin")
+def r_bulletin_get(h):
+    h._send(200, (store.get_settings().get("bulletin") or {}).get(str(store.viewer())) or {})
+
+
+@route("POST", r"/api/bulletin")
+def r_bulletin_set(h):
+    allb = dict(store.get_settings().get("bulletin") or {})
+    allb[str(store.viewer())] = {k: v for k, v in h.json_body().items() if k in ("week", "id", "type", "draw", "since")}
+    store.set_settings({"bulletin": allb})
+    h._send(200, {"ok": True})
 
 
 @route("DELETE", r"/api/items/(\d+)")
@@ -2273,6 +2403,60 @@ def r_desk_fs(h):
     h._send(200, {"ok": DESKTOP is not None})
 
 
+# ---- start with Windows (like Firefox's option): an entry in your sign-in list (HKCU ... Run). It runs a tiny
+# launcher that waits for the library's drive (a USB drive may come up after sign-in) and then opens the app.
+RUN_KEY, RUN_NAME = r"Software\Microsoft\Windows\CurrentVersion\Run", "BabelsLibrary"
+LAUNCHER = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "BabelsLibrary", "start_babel.pyw")
+
+
+def _startup_on():
+    if os.name != "nt":
+        return False
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            return bool(winreg.QueryValueEx(k, RUN_NAME)[0])
+    except OSError:
+        return False
+
+
+@route("GET", r"/api/desktop/startup")
+def r_startup_get(h):
+    h._send(200, {"on": _startup_on()})
+
+
+@route("POST", r"/api/desktop/startup")
+def r_startup_set(h):
+    if os.name != "nt":
+        raise ValueError("Starting with the computer needs Windows")
+    import winreg
+    on = bool(h.json_body().get("on"))
+    if on == _startup_on():
+        return h._send(200, {"on": on})
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+        if on:
+            app = os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop.py")
+            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            os.makedirs(os.path.dirname(LAUNCHER), exist_ok=True)
+            with open(LAUNCHER, "w", encoding="utf-8") as f:
+                f.write("\n".join([
+                    "# Starts Babel's Library when Windows starts (its drive may take a moment to appear).",
+                    "import os, subprocess, sys, time",
+                    f"APP = {app!r}",
+                    "for _ in range(90):",
+                    "    if os.path.exists(APP):",
+                    "        subprocess.Popen([sys.executable, APP], cwd=os.path.dirname(APP))",
+                    "        break",
+                    "    time.sleep(2)", ""]))
+            winreg.SetValueEx(k, RUN_NAME, 0, winreg.REG_SZ, f'"{pyw}" "{LAUNCHER}"')
+        else:
+            try:
+                winreg.DeleteValue(k, RUN_NAME)
+            except OSError:
+                pass
+    h._send(200, {"on": _startup_on()})
+
+
 @route("POST", r"/api/desktop/widget")
 def r_desk_widget(h):
     d = h.json_body()
@@ -2787,6 +2971,7 @@ def start_background():
     # one pass over the existing books to find series (again whenever the way series are found improves)
     threading.Thread(target=audiobook.reset_stale, daemon=True).start()
     discover.start_gatherer()        # the catalogue's contents are gathered in the background
+    threading.Thread(target=lambda: (time.sleep(45), merge_all_copies()), daemon=True).start()   # (once)
     try:
         import news
         news.start_watching()        # and the Local desk's events, when you've asked to hear about new ones
