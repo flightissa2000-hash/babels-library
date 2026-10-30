@@ -1941,6 +1941,24 @@ def _quote_of_the_day(when):
     return {"text": q[:900], "by": by[:120], "page": "https://en.wikiquote.org/wiki/" + urllib.parse.quote(by.replace(" ", "_"))}
 
 
+def _article_intro(title):
+    """The paragraphs before an article's first heading, as plain text."""
+    q = urllib.parse.urlencode({"action": "query", "prop": "extracts", "exintro": 1, "explaintext": 1, "redirects": 1,
+                                "format": "json", "formatversion": 2, "titles": title})
+    req = urllib.request.Request("https://en.wikipedia.org/w/api.php?" + q, headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
+    pages = json.loads(urllib.request.urlopen(req, timeout=15).read()).get("query", {}).get("pages") or []
+    text = (pages[0].get("extract") or "") if pages else ""
+    out, n = [], 0
+    for p in (x.strip() for x in text.split("\n")):
+        if not p:
+            continue
+        if n + len(p) > 6000:
+            break
+        out.append(p)
+        n += len(p)
+    return out
+
+
 @route("GET", r"/api/potd")
 def r_potd(h):
     day = time.strftime("%Y/%m/%d")
@@ -1960,9 +1978,14 @@ def r_potd(h):
                     "license": (img.get("license") or {}).get("type") or "", "page": img.get("file_page") or ""})
             a = feed.get("tfa") or {}
             if a.get("extract"):
+                thumb = (a.get("thumbnail") or {}).get("source") or ""
                 data["article"] = {"title": (a.get("titles") or {}).get("normalized") or a.get("title") or "", "about": a.get("description") or "",
-                                   "text": a["extract"][:1400], "img": (a.get("thumbnail") or {}).get("source") or "",
+                                   "text": a["extract"][:1400], "img": thumb,
                                    "page": ((a.get("content_urls") or {}).get("mobile") or {}).get("page") or ""}
+                try:            # the computer has room for the article's whole introduction, not just its first paragraph
+                    data["article"]["paras"] = _article_intro(a.get("title") or data["article"]["title"])
+                except Exception as e:
+                    print("[inkwell] no article introduction:", e)
             try:
                 data["quote"] = _quote_of_the_day(time.localtime())
             except Exception as e:

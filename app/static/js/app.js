@@ -563,8 +563,10 @@ const Bulletin = (() => {
     const a = p && p.article, tf = $("#btTfa");
     if (a && tf) {
       tf.innerHTML = `<header><small>FROM THE ENCYCLOPEDIA</small><h3>Today's Article</h3><p>Wikipedia's featured article of the day</p></header>
-        <article class="btm-tfa-page">${a.img ? `<img src="${esc(a.img)}" alt="" onerror="this.remove()">` : ""}<h4>${esc(a.title)}</h4>${a.about ? `<em>${esc(a.about)}</em>` : ""}
-          <p>${esc(a.text)}</p><button class="btn" data-bt-web="${esc(a.page)}">Read the whole article →</button></article>`;
+        <article class="btm-tfa-page"><div class="btm-tfa-text"><h4>${esc(a.title)}</h4>${a.about ? `<em>${esc(a.about)}</em>` : ""}
+          <div class="btm-tfa-body">${(a.paras && a.paras.length ? a.paras : [a.text]).map((x) => `<p>${esc(x)}</p>`).join("")}</div>
+          <button class="btn" data-bt-web="${esc(a.page)}">Read the whole article →</button></div>
+          ${a.img ? `<figure><img src="${esc(a.img)}" alt="" onerror="this.closest('figure').remove()"><figcaption>${esc(a.title)}</figcaption></figure>` : ""}</article>`;
       tf.hidden = false;
     }
     const q = p && p.quote, qb = $("#btQuote");
