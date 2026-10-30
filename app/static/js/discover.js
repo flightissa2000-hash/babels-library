@@ -61,6 +61,7 @@ const Discover = (() => {
   const itemNo = (t) => { let h = 7; for (const c of String(t || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `${(h % 9000) + 1000}-${String.fromCharCode(65 + (h % 26))}`; };
   const thisYear = new Date().getFullYear();
 
+  const journal_norm = (t) => String(t || "").toLowerCase().replace(/^(the|a|an)\s+/, "").replace(/[^a-z0-9]+/g, "");
   const infoOf = (r) => ({ title: r.title, authors: r.authors || [], year: r.year, isbn: r.isbn || "", link: r.ol_link || r.link || "", wiki: r.wiki || "",
     cover: r.cover || "", blurb: r.blurb || "", why: r.why || "", series: r.series || "", index: r.index ?? null, have: r.have || "", released: r.released || "",
     cat: r.cat || "book", al: r.al || "", form: r.form || "", country: r.country || "", rating: r.rating || null, readers: r.readers || null, genres: r.genres || [] });
@@ -87,6 +88,7 @@ const Discover = (() => {
           <div class="dvi-rating" id="dviRating"></div>
           <div class="dvi-genre" id="dviGenre"></div>
           <div id="dviBody"><p class="dv-none">Fetching the book's details…</p></div>
+          <div id="dviSeries"></div>
           <div id="dviReviews"></div>
         </article>
       </div>`;
@@ -150,6 +152,18 @@ const Discover = (() => {
       links(r.links?.length ? r.links : b.link ? [{ label: new URL(b.link).hostname.replace("www.", ""), url: b.link }] : [], r.read);
       useFull();
     }).catch((e) => { const body = $("#dviBody"); if (body) body.innerHTML = b.blurb ? paras(b.blurb) : `<p class="dv-none err">${esc(e.message)}</p>`; });
+    // part of a series: every book in it, in order (this one marked; yours and the ones you want too)
+    if (cat === "book" || cat === "manga" || cat === "comic")
+      api.get(`/api/discover/seriesof?${new URLSearchParams({ title: b.title, author: (b.authors || [])[0] || "", series: b.series || "", index: b.index ?? "" })}`).then((s) => {
+        if (!el.isConnected || $("#dvInfo h2")?.textContent !== b.title || !s || !s.books) return;
+        const num = (x) => (x == null ? "" : Number.isInteger(+x) ? String(+x) : String(+x));
+        const here = (x) => (s.index != null && +x.index === +s.index) || journal_norm(x.title) === journal_norm(b.title);
+        if (!b.series) { const no = el.querySelector(".dvp-no"); if (no) no.textContent = s.series + (s.index != null ? ` · Book ${num(s.index)}` : ""); }
+        $("#dviSeries").innerHTML = `<section class="dvi-sec dvi-series"><h3><small class="dvi-ser-k">Part of a series</small>${esc(s.series)} <small>${s.books.length} books</small></h3>
+          <div class="dvi-ser">${s.books.map((x) => `<button class="dvi-sb ${here(x) ? "here" : ""} ${x.have ? "have-" + x.have : ""}" data-dv-info="${esc(JSON.stringify(infoOf({ ...x, cat, series: s.series })))}" title="${esc(x.title)}">
+            <span class="dvi-sbc">${x.cover ? `<img loading="lazy" alt="" src="${esc(x.cover)}" onerror="this.remove()">` : ""}<i>${esc(x.title)}</i></span>
+            <b>${x.index != null ? "#" + num(x.index) + " " : ""}${esc(x.title)}</b><small>${[x.year, x.have === "owned" ? "✓ yours" : x.have === "wanted" ? "on your list" : here(x) ? "this one" : ""].filter(Boolean).join(" · ")}</small></button>`).join("")}</div></section>`;
+      }).catch(() => {});
     api.get(`/api/discover/reviews?${q}`).then((r) => {
       if (!el.isConnected || $("#dvInfo h2")?.textContent !== b.title) return;
       const hc = r.hardcover, nyt = r.nyt || [];

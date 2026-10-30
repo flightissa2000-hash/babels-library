@@ -643,7 +643,7 @@ def _make_handler():
                             return fn(self)
                     return self._send(404, {"error": "not found"})
                 # the catalogue (Discover) for the phone: the computer's own routes, passed through
-                m = re.match(r"^/sync/cat/(promos|browse|subjects|search|byauthor|cover|info|reviews|series|authors|ignore|wish)$", path)
+                m = re.match(r"^/sync/cat/(promos|browse|subjects|search|byauthor|cover|info|reviews|series|seriesof|authors|ignore|wish)$", path)
                 if m:
                     target = "/api/wishlist" if m.group(1) == "wish" else "/api/discover/" + m.group(1)
                     for meth, rx, fn in server.ROUTES:

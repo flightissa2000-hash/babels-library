@@ -1317,6 +1317,52 @@ HC_REVIEWS = """query Reviews($id: Int!) {
 }"""
 
 
+HC_SERIES = """query Series($id: Int!) { series(where: {id: {_eq: $id}}) { name
+  book_series(order_by: {position: asc_nulls_last}) { position compilation book { title slug release_date users_count image { url } } } } }"""
+
+
+def series_of(title, author="", series="", index=None):
+    """The series a book is part of, with every book in it in order (Hardcover's list; Wikidata's when Hardcover
+    isn't set up or doesn't know it): {series, index, books: [{title, index, year, cover, link, have}]} or {}."""
+    def go():
+        name, pos, books = series or "", index, []
+        if hardcover_on():
+            try:
+                m = hardcover_match(title, author) or {}
+                fs = m.get("featured_series") or {}
+                sid = (fs.get("series") or {}).get("id")
+                if sid:
+                    name, pos = (fs.get("series") or {}).get("name") or name, fs.get("position") if fs.get("position") is not None else pos
+                    s = ((_hc(HC_SERIES, {"id": sid}).get("series") or [{}])[0]) or {}
+                    best = {}
+                    for x in s.get("book_series") or []:
+                        b = x.get("book") or {}
+                        if x.get("compilation") or x.get("position") is None or not b.get("title") or re.search(r"\(\d+ of \d+\)|part \d+ of \d+", b["title"], re.I):
+                            continue
+                        p = float(x["position"])
+                        if p not in best or (b.get("users_count") or 0) > (best[p].get("users_count") or 0):      # (the edition most read: not a translation)
+                            best[p] = b
+                    for p, b in sorted(best.items()):
+                        rel = b.get("release_date") or ""
+                        books.append({"title": b["title"], "index": p, "year": int(rel[:4]) if rel[:4].isdigit() and rel[:4] > "1000" else None,
+                                      "cover": (b.get("image") or {}).get("url") or "", "link": f"https://hardcover.app/books/{b['slug']}" if b.get("slug") else "",
+                                      "authors": [author] if author else []})
+            except Exception as e:
+                print("[inkwell] series (Hardcover) skipped:", e)
+        if not books and name:
+            try:
+                books = [{**b, "authors": [author] if author else []} for b in _series_books(name, [author] if author else [])]
+            except Exception as e:
+                print("[inkwell] series (Wikidata) skipped:", e)
+        if not name or len(books) < 2:
+            return {}
+        return {"series": name, "index": pos, "books": books}
+    out = _cached(("seriesof", journal.norm(title), journal.norm(author), series or ""), 7 * 86400, go)
+    if out:
+        out = {**out, "books": _mark([dict(b) for b in out["books"]])}       # (what's yours or wished for: as of now)
+    return out
+
+
 def hardcover_on():
     return bool((store.get_settings().get("hardcover_token") or "").strip())
 

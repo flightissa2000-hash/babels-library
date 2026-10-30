@@ -1526,6 +1526,16 @@ def r_disc_series(h):
     h._send(200, discover.serve_series())
 
 
+@route("GET", r"/api/discover/seriesof")
+def r_disc_seriesof(h):
+    q = h.query
+    try:
+        idx = float(q["index"]) if q.get("index") not in (None, "", "null") else None
+    except ValueError:
+        idx = None
+    h._send(200, _online(discover.series_of, q.get("title", ""), q.get("author", ""), q.get("series", ""), idx))
+
+
 @route("GET", r"/api/discover/authors")
 def r_disc_authors(h):
     h._send(200, discover.serve_authors())
