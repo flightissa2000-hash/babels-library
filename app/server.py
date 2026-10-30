@@ -913,6 +913,8 @@ def r_upload(h):
             remaining -= len(chunk)
     try:
         iid, new = import_file(tmp, name, move=True)
+        if new and h.headers.get("X-Private") == "1":        # added as "only me": hidden from the other profiles
+            store.update_item(iid, {"private_to": store.viewer()})
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)

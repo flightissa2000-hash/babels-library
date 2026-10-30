@@ -180,5 +180,5 @@ const Profiles = (() => {
   });
 
   load();
-  return { load, drawerToggle, me: () => me(), current: () => cur };
+  return { load, drawerToggle, me: () => me(), current: () => cur, list: () => list };
 })();

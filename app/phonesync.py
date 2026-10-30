@@ -385,7 +385,7 @@ def clean_incoming(max_age=2 * 86400):
         pass
 
 
-def upload_chunk(h, dev, uid, name, offset, total):
+def upload_chunk(h, dev, uid, name, offset, total, private=False):
     """One piece of a file the phone is sending (8 MB at a time, so a dropped connection resumes where it stopped
     and big files fit through the away-from-home tunnel). When the last piece is in, the file joins the library."""
     import server
@@ -419,7 +419,7 @@ def upload_chunk(h, dev, uid, name, offset, total):
         with open(p, "ab") as fh:
             fh.write(first)
         have = os.path.getsize(p)
-        return {"have": have} if have < total else _finish(p, name, dev, have)
+        return {"have": have} if have < total else _finish(p, name, dev, have, private=private)
     if offset != have:                      # out of step (a retry): tell the phone where to carry on
         h.rfile.read(n) if n else None
         h._body_read = True
@@ -436,10 +436,10 @@ def upload_chunk(h, dev, uid, name, offset, total):
     have = os.path.getsize(p)
     if have < total:
         return {"have": have}
-    return _finish(p, name, dev, have, total)
+    return _finish(p, name, dev, have, total, private=private)
 
 
-def _finish(p, name, dev, have, total=None):
+def _finish(p, name, dev, have, total=None, private=False):
     """The last piece is in: the file joins the library (in the background; it can take a while for a big film)."""
     import server
     if total is not None and have > total:
@@ -449,6 +449,9 @@ def _finish(p, name, dev, have, total=None):
     def bring_in():
         try:
             iid, new = server.import_file(p, name, origin="phone", move=True)
+            if new and private:             # sent as "only me": hidden from every profile but the phone's
+                pid = int(dev.get("profile") or store.OWNER)
+                store.update_item(iid, {"private_to": pid if store.get_profile(pid) else store.OWNER})
             it = store.get_item(iid) or {}
             print(f"[inkwell] {'Added from' if new else 'Already in the library, sent from'} {dev.get('name', 'phone')}: {it.get('title') or name}")
         except Exception as e:
@@ -558,7 +561,7 @@ def _make_handler():
                         return self._send(200, {"have": upload_size(q.get("u", ""))})
                     if method == "DELETE":
                         return self._send(200, upload_cancel(q.get("u", "")))
-                    return self._send(200, upload_chunk(self, dev, q.get("u", ""), q.get("name", ""), int(q.get("offset") or 0), int(q.get("total") or 0)))
+                    return self._send(200, upload_chunk(self, dev, q.get("u", ""), q.get("name", ""), int(q.get("offset") or 0), int(q.get("total") or 0), q.get("private") == "1"))
                 if path == "/sync/push/key":
                     import webpush
                     return self._send(200, {"key": webpush.public_key()})

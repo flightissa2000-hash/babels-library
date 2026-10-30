@@ -1116,16 +1116,26 @@ function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").set
 /* ---------------- add dialog ---------------- */
 async function uploadFiles(files) {
   const list = $("#uploadList");
+  // with more than one profile: everyone's, or this profile's alone (hidden from the others)?
+  const profs = typeof Profiles !== "undefined" ? Profiles.list() : [];
+  let priv = false;
+  if (profs.length > 1 && files.length) {
+    const me = Profiles.me();
+    const a = await askKeep(files.length > 1 ? `Who can see these ${files.length} files?` : `Who can see “${files[0].name}”?`,
+      `Everyone: every profile sees it. Only me: just ${me.name}, here and on ${me.name}'s phones.`, [["Everyone", "public"], [`🔒 Only me (${me.name})`, "private", "primary"]]);
+    if (a == null) return;
+    priv = a === "private";
+  }
   for (const f of files) {
     if (!/\.(pdf|epub|cbz|cbr|cb7|cbt|mp3|flac|m4a|aac|ogg|oga|opus|wav|wma|aiff?|mp4|m4v|mkv|webm|avi|mov|wmv|mpe?g|ts)$/i.test(f.name)) { toast(`${f.name}: Babel's Library can't add this kind of file`, "error"); continue; }
     const li = document.createElement("li");
     li.textContent = `${f.name}: uploading…`;
     list.prepend(li);
     try {
-      const r = await fetch("/api/upload", { method: "POST", headers: { "X-Filename": encodeURIComponent(f.name) }, body: f });
+      const r = await fetch("/api/upload", { method: "POST", headers: { "X-Filename": encodeURIComponent(f.name), ...(priv ? { "X-Private": "1" } : {}) }, body: f });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
-      li.textContent = j.new ? `${f.name}: added, sorting now` : `${f.name}: already in your library`;
+      li.textContent = j.new ? `${f.name}: added${priv ? " (only you can see it)" : ""}, sorting now` : `${f.name}: already in your library`;
     } catch (e) { li.textContent = `${f.name}: ${e.message}`; }
   }
   loadItems();
