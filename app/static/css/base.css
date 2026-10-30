@@ -2679,3 +2679,6 @@ body.ib-on .drawer{z-index:45}
 .sp-row input{flex:none}
 .sp-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sp-row.first{border-color:var(--accent)}
+/* the closing mark, after the quote's last word */
+.btm-q p::after{content:"”";display:inline-block;margin-left:.08em;font:700 6.4rem/0 "Libre Baskerville",Georgia,serif;font-style:normal;color:#ffb347;opacity:.8;vertical-align:-.66em}
+[data-theme=gruvbox] .btm-q p::after{color:#fabd2f}

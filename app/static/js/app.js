@@ -25,7 +25,7 @@ if (MINI) document.documentElement.classList.add("mini");
 const areaKinds = () => AREA_KINDS[S.area] || AREA_KINDS.books;
 let TAX = { genres: {}, subjects: [], topics: [] };
 const S = {
-  items: [], settings: {}, kind: "all", q: "", tag: null, area: "books",
+  items: [], settings: {}, kind: "all", q: "", tag: null, area: "books", home: true,      // (the app opens on the Bulletin)
   groupBy: "auto", sortBy: "added", view: "shelf", heistSel: null, openId: null,
 };
 
@@ -545,11 +545,11 @@ const Bulletin = (() => {
         <div class="btm-barcode"><i></i><span>0 ${String(issue).padStart(5, "0")} 42</span></div></section>
       <section class="btm-sec btm-hot"><header><small>FROM THE CATALOGUE</small><h3>Hot Off the Press</h3><p>This week's most talked-about finds you don't own yet</p></header>
         <div id="btNew" class="btm-ranks"><p class="hint">Stopping the presses…</p></div></section>
+      <section class="btm-sec btm-tfa" id="btTfa" hidden></section>
+      <section class="btm-sec btm-qotd" id="btQuote" hidden></section>
       <section class="btm-sec btm-wrap"><header><small>ON YOUR SHELVES</small><h3>Still in the Wrapper</h3><p>Books, comics and films you own but have never opened</p></header>
         ${wrapped.length ? `<div class="btm-velvet">${wrapped.map((x) => `<button class="btm-gem" data-detail="${x.id}">${coverHTML(x)}<span class="btm-seal">UNOPENED</span><b>${esc(Wheel.title(x))}</b><small>${esc([Wheel.kindName(x), authorLine(x)].filter(Boolean).join(" · "))}</small></button>`).join("")}</div>`
           : `<p class="hint">You've opened everything on your shelves. Impressive.</p>`}</section>
-      <section class="btm-sec btm-tfa" id="btTfa" hidden></section>
-      <section class="btm-sec btm-qotd" id="btQuote" hidden></section>
     </div>${tabs}</div>`;
     paintPicks(wk);
     paintPotd();
@@ -620,7 +620,7 @@ const Bulletin = (() => {
 /* Home: the TV & Movies wheel for everything you're in the middle of. Cards fan out down the left (mouse wheel, arrow
    keys or a click turn it), the chosen one is shown big on the right; clicking the chosen card again (or Enter) opens it. */
 const Wheel = {
-  i: 0, list: [], tab: "recent", authors: new Map(), unwrapped: new Set(),
+  i: 0, list: [], tab: "bulletin", authors: new Map(), unwrapped: new Set(),
   tabs: { recent: "Recently opened", bulletin: "The Bulletin", new: "New additions" },
   items() {
     const ok = S.items.filter((i) => i.has_file && ["book", "graphic", "article", "tv", "movie"].includes(i.kind));
@@ -792,7 +792,7 @@ const Wheel = {
 function renderLib() {
   const lib = $("#library");
   document.body.classList.toggle("is-home", !!S.home);
-  if (S.home) { document.body.classList.remove("area-media", "area-journal", "area-video"); return renderHome(lib); }
+  if (S.home) { document.body.classList.remove("area-media", "area-journal", "area-video"); $$("#areaSeg button").forEach((b) => b.classList.remove("on")); return renderHome(lib); }
   document.body.classList.toggle("area-journal", S.area === "journal");
   if (S.area === "journal") { document.body.classList.remove("area-media"); Journal.render(lib); return; }
   document.body.classList.toggle("area-media", !READ_AREAS.includes(S.area));
