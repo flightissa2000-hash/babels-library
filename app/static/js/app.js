@@ -52,6 +52,50 @@ function askKeep(title, text, answers) {
   });
 }
 
+/* sending one volume of a series (or episode of a show) to the phone: which of the others go too? Resolves to the
+   items to send, or null if it's dismissed */
+function pickSeries(it) {
+  const k = it && inSeries(it) && seriesKey(it.series);
+  const rest = !k ? [] : S.items.filter((x) => x.id !== it.id && x.has_file && inSeries(x) && seriesKey(x.series) === k);
+  if (!rest.length) return Promise.resolve(it ? [it] : []);
+  const all = [it, ...rest].sort(seriesOrder);
+  const label = (x) => x.kind === "tv" && x.season != null ? `S${x.season}${x.episode != null ? " E" + x.episode : ""} · ${x.title}` : x.title;
+  return new Promise((done) => {
+    const w = document.createElement("div");
+    w.className = "keep-ask";
+    w.innerHTML = `<form class="ka-card sp-card" role="dialog"><h3>Send more of “${esc(it.series)}”?</h3>
+      <p>Tick what your phone should fetch (tick a later one and everything in between comes too).</p>
+      <div class="sp-quick"><button type="button" class="btn sm" data-sp="all">All</button><button type="button" class="btn sm" data-sp="none">Only this one</button></div>
+      <div class="sp-list">${all.map((x) => `<label class="sp-row ${x.id === it.id ? "first" : ""}"><input type="checkbox" value="${x.id}" ${x.id === it.id ? "checked" : ""}><span>${esc(label(x))}</span></label>`).join("")}</div>
+      <div class="ka-row"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary" data-sp-go></button></div></form>`;
+    const boxes = [...w.querySelectorAll(".sp-list input")];
+    const picked = () => boxes.filter((b) => b.checked).map((b) => all.find((x) => x.id === Number(b.value)));
+    const paint = () => { const n = picked().length, go = w.querySelector("[data-sp-go]"); go.disabled = !n; go.textContent = n ? `📱 Send ${n}` : "Tick something to send"; };
+    const end = (v) => { w.remove(); removeEventListener("keydown", key, true); done(v); };
+    const key = (e) => { if (e.key === "Escape") { e.stopPropagation(); end(null); } };
+    let last = all.indexOf(it);           // (tick one, then another further down: everything between comes too)
+    w.addEventListener("click", (e) => {
+      const q = e.target.closest("[data-sp]");
+      if (q) { boxes.forEach((b) => (b.checked = q.dataset.sp === "all" || Number(b.value) === it.id)); paint(); }
+      if (e.target.closest("[data-x]") || e.target === w) end(null);
+    });
+    w.addEventListener("change", (e) => {
+      const i = boxes.indexOf(e.target);
+      if (i < 0) return;
+      if (e.target.checked && last != null && last !== i && boxes[last].checked) {
+        const [a, b] = last < i ? [last, i] : [i, last];
+        for (let j = a; j <= b; j++) boxes[j].checked = true;
+      }
+      last = e.target.checked ? i : null;
+      paint();
+    });
+    w.querySelector("form").onsubmit = (e) => { e.preventDefault(); const p = picked(); end(p.length ? p : null); };
+    addEventListener("keydown", key, true);
+    paint();
+    document.body.append(w);
+  });
+}
+
 /* articles kept for 30 days: a few days before one is due to go, ask whether to delete it or keep it longer */
 const EXPIRY = { asking: false, later: {} };
 async function checkExpiring() {
@@ -130,8 +174,9 @@ function filtered() {
     if (!kinds.includes(it.kind)) return false;
     if (S.kind !== "all" && !kindMatches(it, S.kind)) return false;
     if (S.tag && !(it.tags || []).includes(S.tag)) return false;
-    if (S.coll === "wish") { if (!(it.wanted && !it.has_file)) return false; }
-    else if (S.coll && !(it.collections || []).includes(S.coll)) return false;
+    const wish = it.wanted && !it.has_file;          // (wanted, not owned: only in the Wishlist, never among what's here)
+    if (S.coll === "wish") { if (!wish) return false; }
+    else if (wish || (S.coll && !(it.collections || []).includes(S.coll))) return false;
     if (!q) return true;
     const hay = [it.title, (it.authors || []).join(" "), (it.tags || []).join(" "), it.topic, it.genre, it.subject, it.journal, it.year, it.publisher, it.series, it.album, it.album_artist].join(" ").toLowerCase();
     return q.split(/\s+/).every((w) => hay.includes(w));
@@ -1018,8 +1063,14 @@ async function openDrawer(id, quiet = false) {
     };
   }
   if ($("#dToPhone")) $("#dToPhone").onclick = async (e) => {
-    try { const r = await api.send("POST", `/api/phone/send/${id}`, {}); toast(`Queued: your phone${r.phones > 1 ? "s" : ""} will fetch it on the next sync`); e.target.textContent = "📱 Queued for your phone"; e.target.disabled = true; }
-    catch (err) { toast(err.message, "error"); }
+    const b = e.currentTarget;
+    try {
+      const list = await pickSeries(S.items.find((x) => x.id === id));
+      if (!list) return;
+      let r;
+      for (const x of list) r = await api.send("POST", `/api/phone/send/${x.id}`, {});
+      toast(`Queued${list.length > 1 ? ` ${list.length}` : ""}: your phone${r.phones > 1 ? "s" : ""} will fetch ${list.length > 1 ? "them" : "it"} on the next sync`); b.textContent = "📱 Queued for your phone"; b.disabled = true;
+    } catch (err) { toast(err.message, "error"); }
   };
   if ($("#dPullCover")) $("#dPullCover").onclick = async (e) => {
     e.target.disabled = true; e.target.textContent = "Looking…";

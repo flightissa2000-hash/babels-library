@@ -2670,3 +2670,12 @@ body.ib-on .drawer{z-index:45}
 .prof-lock{background:var(--bg,#111)!important;z-index:9500}
 .prof-lock p .btn{margin:6px 4px 0 0}
 .prof-menu .prof-pinbtn{margin-top:10px;width:100%}
+
+/* sending more of a series to the phone */
+.keep-ask .sp-card{max-height:86vh;display:flex;flex-direction:column}
+.sp-quick{display:flex;gap:8px;margin:0 0 8px}
+.sp-list{overflow:auto;flex:1;min-height:0;margin:0 0 14px;display:grid;gap:4px}
+.sp-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.sp-row input{flex:none}
+.sp-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-row.first{border-color:var(--accent)}
