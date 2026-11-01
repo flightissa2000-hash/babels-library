@@ -456,7 +456,23 @@ const Bulletin = (() => {
   const shuffle = (list, r) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   let srv;                     // this profile's challenge, as the computer keeps it (shared with its phones)
   const load = () => srv || null;
-  const save = (c) => { srv = c; api.send("POST", "/api/bulletin", c).catch(() => {}); };
+  const save = (c) => { srv = c; srvAt = Date.now(); api.send("POST", "/api/bulletin", c).catch(() => {}); };
+  /* a phone can pick another too (it saves to the computer): look again now and then, and redraw if it changed */
+  let srvAt = 0, looking = false;
+  function refresh() {
+    if (srv === undefined || looking || Date.now() - srvAt < 4000) return;
+    looking = true;
+    api.get("/api/bulletin").then((b) => {
+      srvAt = Date.now();
+      const nb = b && b.week ? b : null, same = JSON.stringify(nb) === JSON.stringify(srv);
+      if (!nb || same) return;
+      srv = nb;
+      if (S.home && Wheel.tab === "bulletin" && $("#library")) Wheel.render($("#library"));
+    }).catch(() => {}).then(() => { looking = false; });
+  }
+  setInterval(() => { if (!document.hidden && S.home && Wheel.tab === "bulletin") refresh(); }, 10000);
+  addEventListener("focus", refresh);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   let picks = null;            // the catalogue's suggestions, fetched once per visit
 
   function finishedAt(it) {
@@ -512,7 +528,7 @@ const Bulletin = (() => {
   function render(lib, tabs) {
     if (srv === undefined) {
       return api.get("/api/bulletin").then((b) => {
-        srv = b && b.week ? b : null;
+        srv = b && b.week ? b : null; srvAt = Date.now();
         if (!srv && (typeof Profiles === "undefined" || Profiles.current() === 1)) {        // (from before profiles)
           try { srv = JSON.parse(localStorage.getItem("inkwell-challenge") || "null"); } catch (e) {}
         }
