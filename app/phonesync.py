@@ -635,6 +635,26 @@ def _make_handler():
                         if meth == method and mm:
                             return fn(self, *mm.groups())
                     return self._send(404, {"error": "not found"})
+                if path == "/sync/match" and method == "POST":
+                    # files already on the phone (sent from it, or copied there some other way): by size first, then by
+                    # their SHA-256, which the computer keeps for every file in the library
+                    out = {}
+                    with store._lock:
+                        rows = [dict(r) for r in store._db.execute("SELECT id, file_type, sha256, private_to FROM items WHERE file_path IS NOT NULL AND file_path<>''")]
+                    by_size = {}
+                    for r in rows:
+                        if store.visible(r):
+                            by_size.setdefault(_file_size(r["id"]), []).append(r)
+                    for f in (self.json_body().get("files") or [])[:5000]:
+                        k, size, sha = str(f.get("k")), f.get("size"), (f.get("sha") or "").lower()
+                        cands = by_size.get(size) or []
+                        if sha:
+                            hit = next((r for r in cands if (r["sha256"] or "").lower() == sha), None)
+                            if hit:
+                                out[k] = {"id": hit["id"], "file_type": hit["file_type"]}
+                        elif cands:
+                            out[k] = {"maybe": len(cands)}
+                    return self._send(200, out)
                 if path == "/sync/define" and method == "GET":      # the readers' dictionary
                     for meth, rx, fn in server.ROUTES:
                         if meth == "GET" and rx.match("/api/define"):
