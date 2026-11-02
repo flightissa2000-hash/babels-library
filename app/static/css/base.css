@@ -2361,17 +2361,41 @@ body.ib-on .drawer{z-index:45}
 .btm-rinfo b{font:400 1.25rem/1.05 "Anton",sans-serif;letter-spacing:.01em}
 .btm-rinfo span{font-size:.74rem;opacity:.7}
 .btx-mag .btm-rinfo .bt-want{position:static;align-self:flex-start;transform:none;margin-top:6px;background:#ffd84d;color:#111;border:0;font-weight:900}
-/* Still in the Wrapper: spotlights on dark velvet, gold seals */
-.btm-wrap{background:radial-gradient(ellipse at 50% 0,rgba(255,220,150,.16),transparent 55%),repeating-linear-gradient(90deg,rgba(255,255,255,.015) 0 2px,transparent 2px 5px),#2a0a1a}
-.btm-wrap header h3{color:#ffd9a0;text-shadow:0 0 30px rgba(255,200,120,.35)}
-.btm-velvet{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:28px}
-.btm-gem{position:relative;display:flex;flex-direction:column;gap:6px;padding:0;border:0;background:none;color:#fff;text-align:left;cursor:pointer}
-.btm-gem::before{content:"";position:absolute;left:-12%;right:-12%;top:-30px;height:70%;background:radial-gradient(ellipse at 50% 0,rgba(255,235,190,.32),transparent 70%);pointer-events:none}
-.btm-gem .cover{aspect-ratio:2/3;border-radius:4px;box-shadow:0 20px 40px rgba(0,0,0,.8);transition:transform .3s}
-.btm-gem:hover .cover{transform:translateY(-6px) scale(1.03)}
-.btm-seal{position:absolute;top:10px;right:-8px;padding:4px 8px;transform:rotate(8deg);background:linear-gradient(135deg,#ffe8a3,#c9952e);color:#3a2205;font:900 .6rem "Nunito",sans-serif;letter-spacing:.16em;box-shadow:0 4px 10px rgba(0,0,0,.5)}
-.btm-gem b{font:400 1.05rem/1.1 "Anton",sans-serif;letter-spacing:.01em}
-.btm-gem small{font-size:.7rem;opacity:.65}
+/* the wires: world news, then science press releases */
+.btm-sec header{position:relative}
+.btm-refresh{position:absolute;top:0;right:0;width:44px;height:44px;border-radius:50%;border:2px solid currentColor;background:transparent;color:inherit;font-size:1.25rem;opacity:.8;cursor:pointer}
+.btm-refresh:hover{opacity:1}
+.btm-wire{background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px),linear-gradient(170deg,#1c0b0b,#0a0a0c 70%)}
+.btm-wire header h3{color:#fff;text-shadow:0 0 30px rgba(255,60,60,.45)}
+.btm-labs{background:radial-gradient(ellipse at 100% 0,rgba(90,200,255,.18),transparent 55%),linear-gradient(170deg,#06141f,#08080b 75%)}
+.btm-labs header h3{background:linear-gradient(90deg,#7ee3ff,#8affc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+.btm-wires{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:0 40px}
+.btm-wire-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:16px;align-items:center;padding:16px 0;border:0;border-bottom:1px solid rgba(255,255,255,.12);background:none;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.btm-wire-row.noimg{grid-template-columns:minmax(0,1fr)}
+.btm-wire-row:hover b{text-decoration:underline}
+.btm-wtext{display:flex;flex-direction:column;gap:6px;min-width:0}
+.btm-wmeta{display:flex;align-items:center;gap:8px;min-width:0}
+.btm-wmeta small{font-size:.72rem;font-weight:800;letter-spacing:.04em;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btm-wire-row b{font-size:1.05rem;line-height:1.28;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.btm-hot-tag{flex:none;padding:2px 7px;border-radius:3px;background:#e0222d;color:#fff;font:900 .6rem "Nunito",sans-serif;font-style:normal;letter-spacing:.14em;animation:btmBlink 1.6s ease-in-out infinite}
+.btm-labs .btm-hot-tag{background:#16a3c9}
+@keyframes btmBlink{50%{opacity:.55}}
+.btm-wpic{width:120px;height:80px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.06)}
+.btm-wpic img{width:100%;height:100%;object-fit:cover;display:block}
+[data-theme=wordtown] .btm-wire{background:#fff;color:#22304a}
+[data-theme=wordtown] .btm-wire header h3{color:#ff6b4a;text-shadow:none}
+[data-theme=wordtown] .btm-labs{background:#bfe7ff;color:#22304a}
+[data-theme=wordtown] .btm-labs header h3{background:none;color:#fff;-webkit-text-stroke:0;text-shadow:3px 3px 0 #22304a}
+[data-theme=wordtown] .btm-wire-row{border-bottom-color:rgba(34,48,74,.18)}
+[data-theme=wordtown] .btm-hot-tag{border:2px solid #22304a;background:#ff6b4a}
+[data-theme=wordtown] .btm-labs .btm-hot-tag{background:#4aa8ff}
+[data-theme=wordtown] .btm-wpic{border:3px solid #22304a}
+[data-theme=gruvbox] .btm-wire,[data-theme=gruvbox] .btm-labs{background:#282828}
+[data-theme=gruvbox] .btm-wire header h3{color:#fb4934;text-shadow:none}
+[data-theme=gruvbox] .btm-labs header h3{background:none;color:#83a598;-webkit-text-fill-color:currentColor}
+[data-theme=gruvbox] .btm-hot-tag{background:#cc241d;border-radius:0}
+[data-theme=gruvbox] .btm-labs .btm-hot-tag{background:#458588}
+[data-theme=gruvbox] .btm-wire-row{border-bottom:1px dashed #504945}
 /* Lab Notes: a blueprint grid, figures numbered like a journal, a little molecule on each */
 .btm-lab{background:linear-gradient(rgba(70,170,255,.08) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,rgba(70,170,255,.08) 1px,transparent 1px) 0 0/24px 24px,#071526;padding-bottom:50px}
 .btm-lab header small{color:#5ec8ff;opacity:1;font-family:"IBM Plex Mono",monospace}
@@ -2459,12 +2483,6 @@ body.is-home #ficSel,body.is-home #kindSel,body.area-video #kindSel{visibility:h
 [data-theme=wordtown] .btm-rank .cover{border:3px solid #22304a;box-shadow:6px 6px 0 #22304a}
 [data-theme=wordtown] .btm-rinfo small{color:#ff6b4a}
 [data-theme=wordtown] .btx-mag .btm-rinfo .bt-want{background:#fff;border:2.5px solid #22304a;color:#22304a}
-[data-theme=wordtown] .btm-wrap{background:#ff8fc0;color:#22304a}
-[data-theme=wordtown] .btm-wrap header h3{color:#fff}
-[data-theme=wordtown] .btm-gem{color:#22304a}
-[data-theme=wordtown] .btm-gem::before{display:none}
-[data-theme=wordtown] .btm-gem .cover{border:3px solid #22304a;box-shadow:6px 6px 0 #22304a}
-[data-theme=wordtown] .btm-seal{background:#ffc93c;border:2px solid #22304a;color:#22304a}
 [data-theme=wordtown] .btm-lab{background:linear-gradient(rgba(34,48,74,.08) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,rgba(34,48,74,.08) 1px,transparent 1px) 0 0/24px 24px,#fff;color:#22304a}
 [data-theme=wordtown] .btm-lab header small{color:#4aa8ff}
 [data-theme=wordtown] .btm-lab header h3{color:#4aa8ff;font-family:"Fredoka",sans-serif}
@@ -2500,10 +2518,6 @@ body.is-home #ficSel,body.is-home #kindSel,body.area-video #kindSel{visibility:h
 [data-theme=gruvbox] .btm-rank .cover{border-radius:2px}
 [data-theme=gruvbox] .btm-rinfo small{color:#fe8019;font-family:"IBM Plex Mono",monospace}
 [data-theme=gruvbox] .btx-mag .btm-rinfo .bt-want{background:#b8bb26;color:#1d2021;border-radius:2px}
-[data-theme=gruvbox] .btm-wrap{background:radial-gradient(ellipse at 50% 0,rgba(250,189,47,.12),transparent 55%),#282828}
-[data-theme=gruvbox] .btm-wrap header h3{color:#fabd2f;text-shadow:none}
-[data-theme=gruvbox] .btm-gem .cover{border-radius:2px}
-[data-theme=gruvbox] .btm-seal{background:#d79921;color:#1d2021;font-family:"IBM Plex Mono",monospace}
 [data-theme=gruvbox] .btm-lab{background:linear-gradient(rgba(131,165,152,.08) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,rgba(131,165,152,.08) 1px,transparent 1px) 0 0/24px 24px,#1d2021}
 [data-theme=gruvbox] .btm-lab header small{color:#8ec07c}
 [data-theme=gruvbox] .btm-lab header h3{color:#8ec07c}

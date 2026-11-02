@@ -109,7 +109,7 @@ const News = (() => {
     N.reading = s;
     r.hidden = false;
     r.scrollTop = 0;
-    const bar = `<div class="nw-rbar"><button data-nw-back>← Back to the paper</button><span></span><button data-nw-keep="${esc(s.link)}">⤓ Keep</button><button data-nw-orig="${esc(s.link)}">Open the original ↗</button></div>`;
+    const bar = `<div class="nw-rbar"><button data-nw-back>← ${N.direct ? "Back" : "Back to the paper"}</button><span></span><button data-nw-keep="${esc(s.link)}">⤓ Keep</button><button data-nw-orig="${esc(s.link)}">Open the original ↗</button></div>`;
     r.innerHTML = bar + `<div class="nw-rpage"><p class="nw-rkicker">${esc(s.source)}${s.date ? " · " + ago(s.date) : ""}</p><h1>${esc(s.title)}</h1>${s.summary ? `<p class="nw-rdek">${esc(s.summary)}</p>` : ""}${note("Setting the type…")}</div>`;
     try {
       const a = await get("/api/news/article?" + new URLSearchParams({ url: s.link }));
@@ -129,7 +129,18 @@ const News = (() => {
       r.querySelector(".nw-rpage .nw-note")?.remove();
     }
   }
-  function shut() { N.reading = null; const r = $("#nwReader"); if (r) { r.hidden = true; r.innerHTML = ""; } }
+  function shut() {
+    N.reading = null;
+    const r = $("#nwReader"); if (r) { r.hidden = true; r.innerHTML = ""; }
+    if (N.direct) { N.direct = false; $("#nwModal").classList.remove("open"); }     // (opened from the Bulletin: back to it)
+  }
+  /* a story opened from elsewhere (the Bulletin's wires): just the story, in the paper's reader */
+  function story(s) {
+    const m = sheet();
+    N.direct = true;
+    requestAnimationFrame(() => m.classList.add("open"));
+    read(s);
+  }
 
   async function click(e) {
     const t = e.target;
@@ -167,5 +178,5 @@ const News = (() => {
     } catch (err) { btn.disabled = false; btn.textContent = "Start delivery"; toast(err.message, "error"); }
   }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && close()) e.stopPropagation(); }, true);
-  return { open, close };
+  return { open, close, story };
 })();

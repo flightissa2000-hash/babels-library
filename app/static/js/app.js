@@ -546,11 +546,6 @@ const Bulletin = (() => {
     if (reroll && cur && f.id === cur.id) return [it, type];
     return [f, Wheel.status(f)[0] === "now" ? "finish" : "start"];
   }
-  // Still in the Wrapper: the series' first unread volume, and none from a series you're partway through
-  const wrapperPicks = (list) => {
-    const seen = new Set();
-    return list.map(firstUnread).filter((x) => !x.opened_at && Wheel.status(x)[0] === "new" && !seen.has(x.id) && seen.add(x.id));
-  };
   function challenge(reroll = false) {
     const wk = weekStart(), cur = load();
     const ci = cur && S.items.find((i) => i.id === cur.id);
@@ -584,9 +579,8 @@ const Bulletin = (() => {
         }
       }).catch(() => { srv = null; }).then(() => render(lib, tabs));
     }
-    const wk = weekStart(), r = rng("shelf" + wk);
+    const wk = weekStart();
     const c = challenge(), it = c && S.items.find((i) => i.id === c.id);
-    const wrapped = wrapperPicks(shuffle(S.items.filter((i) => ["book", "graphic", "movie", "tv"].includes(i.kind) && i.has_file && !i.opened_at), r)).filter((i) => !(it && i.id === it.id)).slice(0, 6);
     const when = new Date(wk * 1000).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
     const issue = Math.max(1, Math.round((wk - Date.UTC(2026, 0, 5) / 1000) / (7 * DAY)) + 1);
     const ch = it ? { it, c, ok: done(c, it), p: pctOf(it), finish: c.type === "finish", start: c.type === "start",
@@ -613,12 +607,35 @@ const Bulletin = (() => {
         <div id="btNew" class="btm-ranks"><p class="hint">Stopping the presses…</p></div></section>
       <section class="btm-sec btm-tfa" id="btTfa" hidden></section>
       <section class="btm-sec btm-qotd" id="btQuote" hidden></section>
-      <section class="btm-sec btm-wrap"><header><small>ON YOUR SHELVES</small><h3>Still in the Wrapper</h3><p>Books, comics and films you own but have never opened</p></header>
-        ${wrapped.length ? `<div class="btm-velvet">${wrapped.map((x) => `<button class="btm-gem" data-detail="${x.id}">${coverHTML(x)}<span class="btm-seal">UNOPENED</span><b>${esc(Wheel.title(x))}</b><small>${esc([Wheel.kindName(x), authorLine(x)].filter(Boolean).join(" · "))}</small></button>`).join("")}</div>`
-          : `<p class="hint">You've opened everything on your shelves. Impressive.</p>`}</section>
+      <section class="btm-sec btm-wire"><header><small>THE WIRE · WORLD</small><h3>Breaking News</h3><p>The latest from BBC, Al Jazeera, NPR and the Guardian</p>
+        <button class="btm-refresh" data-bt-wire-refresh aria-label="Refresh the news" title="Check for new stories">↻</button></header>
+        <div id="btWorld" class="btm-wires"><p class="hint">Warming up the wire…</p></div></section>
+      <section class="btm-sec btm-labs"><header><small>PRESS RELEASES · SCIENCE</small><h3>From the Labs</h3><p>Fresh from NASA, ESA, NIH, MIT, Harvard and Cambridge</p></header>
+        <div id="btLabs" class="btm-wires"><p class="hint">Opening the lab doors…</p></div></section>
     </div>${tabs}</div>`;
     paintPicks(wk);
     paintPotd();
+    paintWires();
+  }
+  /* the wires: world news and science press releases (fetched again after half an hour, or with ↻) */
+  let wires = null, wiresAt = 0;
+  const WIRE_NEW = 2 * 3600;                // newer than this: BREAKING (world) / JUST IN (labs)
+  async function paintWires(fresh = false) {
+    const now = () => Date.now() / 1000;
+    if (!wires || fresh || now() - wiresAt > 1800) {
+      const q = fresh ? "?fresh=1" : "";
+      const [w, sci] = await Promise.all([api.get("/api/news/world" + q).catch(() => null), api.get("/api/news/science" + q).catch(() => null)]);
+      const labs = sci && (sci.sections || []).find((s) => s.key === "labs");
+      const seen = {};                       // (newest first, but no more than two from one lab: NASA alone would fill it)
+      if (w || labs) { wires = { world: (w && w.items || []).slice(0, 8), labs: (labs && labs.items || []).slice().sort((a, b) => (b.date || 0) - (a.date || 0)).filter((x) => (seen[x.source] = (seen[x.source] || 0) + 1) <= 2).slice(0, 6) }; wiresAt = now(); }
+    }
+    const age = (t) => { const s = now() - t; return s < 3600 ? Math.max(1, Math.round(s / 60)) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago"; };
+    const list = (key, hot) => (wires && wires[key] || []).map((s, i) => `<button class="btm-wire-row${s.image ? "" : " noimg"}" data-bt-story="${key}:${i}">
+        <span class="btm-wtext"><span class="btm-wmeta">${s.date && now() - s.date < WIRE_NEW ? `<em class="btm-hot-tag">${hot}</em>` : ""}<small>${esc(s.source || "")}${s.date ? " · " + age(s.date) : ""}</small></span>
+        <b>${esc(s.title)}</b></span>${s.image ? `<span class="btm-wpic"><img loading="lazy" alt="" src="${esc(s.image)}" onerror="this.parentNode.remove()"></span>` : ""}</button>`).join("");
+    const fill = (id, key, hot, none) => { const b = $(id); if (b) b.innerHTML = list(key, hot) || `<p class="hint">${none}</p>`; };
+    fill("#btWorld", "world", "BREAKING", "The wire is quiet: the newsrooms couldn't be reached right now.");
+    fill("#btLabs", "labs", "JUST IN", "The labs couldn't be reached right now.");
   }
   /* the dailies (only when the internet can be reached): Wikipedia's picture of the day, pinned in the cover's empty
      corner; its featured article; Wikiquote's quote of the day */
@@ -673,6 +690,9 @@ const Bulletin = (() => {
   }
   document.addEventListener("click", async (e) => {
     if (e.target.closest("[data-bt-reroll]")) { challenge(true); return Wheel.render($("#library")); }
+    if (e.target.closest("[data-bt-wire-refresh]")) { $("#btWorld").innerHTML = `<p class="hint">Checking the wire…</p>`; return paintWires(true); }
+    const sto = e.target.closest("[data-bt-story]");
+    if (sto && wires) { const [k, i] = sto.dataset.btStory.split(":"); const s = wires[k] && wires[k][Number(i)]; if (s) return News.story(s); }
     const w = e.target.closest("[data-bt-want]");
     const fd = !w && e.target.closest("[data-bt-find]");         // a Hot Off the Press poster: its page in the catalogue
     if (fd && picks && picks[Number(fd.dataset.btFind)]) return Discover.showFind(picks[Number(fd.dataset.btFind)]);
