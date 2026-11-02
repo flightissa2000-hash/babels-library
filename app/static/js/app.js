@@ -26,7 +26,7 @@ const areaKinds = () => AREA_KINDS[S.area] || AREA_KINDS.books;
 let TAX = { genres: {}, subjects: [], topics: [] };
 const S = {
   items: [], settings: {}, kind: "all", q: "", tag: null, area: "books", home: true,      // (the app opens on the Bulletin)
-  groupBy: "auto", sortBy: "added", view: "shelf", heistSel: null, openId: null,
+  groupBy: "auto", fic: "all", sortBy: "added", view: "shelf", heistSel: null, openId: null,
 };
 
 function toast(msg, kind = "") {
@@ -165,6 +165,55 @@ const isNewsStory = (it) => it.kind === "article" && (it.source === "web" || (it
 const kindMatches = (it, k) => k === "manga" ? it.kind === "graphic" && it.format === "manga"
   : k === "comic" ? it.kind === "graphic" && it.format !== "manga"
   : k === "paper" ? it.kind === "article" && !isNewsStory(it) : k === "news" ? isNewsStory(it) : it.kind === k;
+// the Books area is either fiction or non-fiction (or all of it); each shows only the groupings and shelves that apply
+const ficMatches = (it) => S.fic === "all" || it.fiction === (S.fic === "fiction" ? 1 : 0);
+const groupMemory = (a) => "inkwell-group-" + a + (a === "books" && S.fic !== "all" ? "-" + S.fic : "");
+const BOOK_GROUPS = {
+  all: [["subject", "Subject"], ["year", "Year"], ["fiction", "Fiction or non-fiction"], ["author", "Author"], ["tag", "Tag"], ["collection", "Collection"]],
+  fiction: [["genre", "Genre"], ["series", "Series"], ["author", "Author"], ["year", "Year"], ["tag", "Tag"], ["collection", "Collection"]],
+  nonfiction: [["subject", "Subject"], ["topic", "Topic"], ["genre", "Genre"], ["author", "Author"], ["year", "Year"], ["tag", "Tag"], ["collection", "Collection"]],
+};
+function paintGroups(a) {
+  const groupOpts = a === "music"
+    ? [["auto", "Albums"], ["genre", "Genre"], ["author", "Artist"], ["year", "Year"]]
+    : a === "video"
+    ? [["auto", "Genre"], ["series", "Film series"], ["year", "Year"], ["none", "No grouping"]]
+    : a === "articles"
+    ? [["subject", "Subject"], ["journal", "Journal"], ["year", "Year"], ["author", "Author"], ["tag", "Tag"], ["collection", "Collection"]]
+    : BOOK_GROUPS[S.fic];
+  $("#groupBy").innerHTML = groupOpts.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+  if (!groupOpts.some(([v]) => v === S.groupBy)) S.groupBy = groupOpts[0][0];
+  $("#groupBy").value = S.groupBy;
+}
+/* Manga, Comics and so on go when there's nothing of theirs on this side; so does the whole row if only "All" is left */
+function paintFicTabs() {
+  if (S.area !== "books") return;
+  let shown = 0;
+  $$("#kindSeg button").forEach((b) => {
+    const k = b.dataset.kind, on = k === "all" || S.fic === "all" || !S.items.length || S.items.some((it) => ficMatches(it) && kindMatches(it, k));
+    b.style.display = on ? "" : "none";
+    if (on && k !== "all") shown++;
+    if (!on && S.kind === k) { S.kind = "all"; b.classList.remove("on"); $('#kindSeg [data-kind="all"]').classList.add("on"); }
+  });
+  $("#kindSeg").hidden = shown < 2;
+}
+function paintShowSelects() {
+  const kinds = [...$$("#kindSeg button")].filter((b) => b.style.display !== "none");
+  const html = kinds.map((b) => `<option value="${b.dataset.kind}">${esc(b.textContent)}</option>`).join("");
+  const sel = $("#kindSel");
+  if (sel.dataset.was !== html) { sel.innerHTML = html; sel.dataset.was = html; }
+  sel.value = S.kind; sel.hidden = $("#kindSeg").hidden;
+  $("#ficSel").value = S.fic; $("#ficSel").hidden = $("#ficSeg").hidden;
+}
+function setFic(f) {
+  try { localStorage.setItem(groupMemory("books"), S.groupBy); } catch (e) {}
+  S.fic = f;
+  try { localStorage.setItem("inkwell-fic", f); const g = localStorage.getItem(groupMemory("books")); if (g) S.groupBy = g; } catch (e) {}
+  $$("#ficSeg button").forEach((b) => b.classList.toggle("on", b.dataset.fic === f));
+  paintGroups("books");
+  savePrefs();
+  render();
+}
 const KIND_TABS = { books: [["book", "Books"], ["manga", "Manga"], ["comic", "Comics"]], articles: [["paper", "Scientific papers"], ["news", "News stories"]] };
 
 function filtered() {
@@ -173,6 +222,7 @@ function filtered() {
   return S.items.filter((it) => {
     if (!kinds.includes(it.kind)) return false;
     if (S.kind !== "all" && !kindMatches(it, S.kind)) return false;
+    if (S.area === "books" && !ficMatches(it)) return false;
     if (S.tag && !(it.tags || []).includes(S.tag)) return false;
     const wish = it.wanted && !it.has_file;          // (wanted, not owned: only in the Wishlist, never among what's here)
     if (S.coll === "wish") { if (!wish) return false; }
@@ -810,6 +860,8 @@ const Wheel = {
 function renderLib() {
   const lib = $("#library");
   document.body.classList.toggle("is-home", !!S.home);
+  paintFicTabs();
+  paintShowSelects();
   if (S.home) { document.body.classList.remove("area-media", "area-journal", "area-video"); $$("#areaSeg button").forEach((b) => b.classList.remove("on")); return renderHome(lib); }
   document.body.classList.toggle("area-journal", S.area === "journal");
   if (S.area === "journal") { document.body.classList.remove("area-media"); Journal.render(lib); return; }
@@ -1000,6 +1052,15 @@ async function openDrawer(id, quiet = false) {
     </div>
     <datalist id="genreList">${genres.map((g) => `<option value="${esc(g)}">`).join("")}</datalist>`;
   const dr = $("#drawer");
+  // fiction has no subject or topic, and each side has its own genres (what's filled in stays, only hidden)
+  const ficFields = () => {
+    const sel = dr.querySelector("[name=fiction]");
+    if (!sel || it.kind === "article") return;
+    dr.querySelectorAll("[name=subject],[name=topic]").forEach((x) => { x.closest("label").style.display = sel.value === "1" ? "none" : ""; });
+    const g = TAX.genre_groups, side = g && (sel.value === "1" ? g.fiction : sel.value === "0" ? g.nonfiction : null);
+    $("#genreList").innerHTML = (side || genres).map((x) => `<option value="${esc(x)}">`).join("");
+  };
+  setTimeout(() => { ficFields(); const sel = dr.querySelector("[name=fiction]"); if (sel) sel.addEventListener("change", ficFields); });
   dr.classList.add("open");
   dr.setAttribute("aria-hidden", "false");
   if (!quiet) dr.scrollTop = 0;
@@ -1443,6 +1504,10 @@ function bind() {
   $("#brand").onclick = () => { S.tag = null; S.q = ""; $("#search").value = ""; S.kind = "all"; S.home = true; $$("#kindSeg button").forEach((b) => b.classList.toggle("on", b.dataset.kind === "all")); $$("#areaSeg button").forEach((b) => b.classList.remove("on")); closeDrawer(); render(); };
   let searchT = null;
   $("#search").addEventListener("input", (e) => { S.q = e.target.value; if (S.home) leaveHome(); clearTimeout(searchT); searchT = setTimeout(render, 140); });
+  // (the dropdowns a cramped top bar shows instead: they press the same buttons)
+  $("#ficSel").onchange = (e) => $(`#ficSeg [data-fic="${e.target.value}"]`).click();
+  $("#kindSel").onchange = (e) => $(`#kindSeg [data-kind="${e.target.value}"]`).click();
+  $("#ficSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { S.home = false; setFic(b.dataset.fic); } };
   $("#kindSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; S.home = false; S.kind = b.dataset.kind; $$("#kindSeg button").forEach((x) => x.classList.toggle("on", x === b)); render(); };
   $("#areaSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) { S.home = false; setArea(b.dataset.area); } };
   Media.bindPlayer();
@@ -1454,8 +1519,8 @@ function bind() {
   // the top bar stays one row: tighten it a step at a time until it fits (and loosen it again when there's room)
   const fitTopbar = () => {
     const t = $(".topbar");
-    t.classList.remove("tight", "tighter", "tightest");
-    for (const c of ["tight", "tighter", "tightest"]) { if (t.scrollWidth <= t.clientWidth + 1) break; t.classList.add(c); }
+    t.classList.remove("tight", "tighter", "tightest", "cramped");
+    for (const c of ["tight", "tighter", "tightest", "cramped"]) { if (t.scrollWidth <= t.clientWidth + 1) break; t.classList.add(c); }
   };
   new ResizeObserver(fitTopbar).observe($(".topbar"));
   new MutationObserver(() => requestAnimationFrame(fitTopbar)).observe($(".topbar"), { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
@@ -1482,7 +1547,7 @@ function bind() {
   document.addEventListener("keydown", (e) => {
     if ((e.key === "j" || e.key === "J") && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches?.("input,textarea,select,[contenteditable]") && $("#reader").hidden && !$("#jbModal.open")) { e.preventDefault(); Journal.openHere(); }
   });
-  $("#groupBy").onchange = (e) => { S.groupBy = e.target.value; savePrefs(); render(); };
+  $("#groupBy").onchange = (e) => { S.groupBy = e.target.value; try { localStorage.setItem(groupMemory(S.area), S.groupBy); } catch (e) {} savePrefs(); render(); };
   $("#sortBy").onchange = (e) => { S.sortBy = e.target.value; savePrefs(); render(); };
   $("#addBtn").onclick = async () => {
     const st = await api.get("/api/status");
@@ -1679,25 +1744,18 @@ function setArea(a) {
   if (a === "media") a = "video";
   if (a === "read" || a === "journal") a = "books";   // the journal is a book you open from the top bar now
   if (!AREA_KINDS[a]) a = "books";
-  if (S.area && S.area !== a) { try { localStorage.setItem("inkwell-group-" + S.area, S.groupBy); } catch (e) {} }
+  if (S.area && S.area !== a) { try { localStorage.setItem(groupMemory(S.area), S.groupBy); } catch (e) {} }
   S.area = a;
-  try { const g = localStorage.getItem("inkwell-group-" + a); if (g) S.groupBy = g; } catch (e) {}
+  try { const f = localStorage.getItem("inkwell-fic"); if (BOOK_GROUPS[f]) S.fic = f; const g = localStorage.getItem(groupMemory(a)); if (g) S.groupBy = g; } catch (e) {}
+  $("#ficSeg").hidden = a !== "books";
+  $$("#ficSeg button").forEach((b) => b.classList.toggle("on", b.dataset.fic === S.fic));
   S.kind = "all";
   $$("#areaSeg button").forEach((b) => b.classList.toggle("on", b.dataset.area === a));
   const kinds = AREA_KINDS[a];
   const tabs = KIND_TABS[a] || kinds.map((k) => [k, KIND_LABEL[k]]);
   $("#kindSeg").innerHTML = `<button data-kind="all" class="on">All</button>` + tabs.map(([k, l]) => `<button data-kind="${k}">${l}</button>`).join("");
   $("#kindSeg").hidden = tabs.length < 2;
-  const groupOpts = a === "music"
-    ? [["auto", "Albums"], ["genre", "Genre"], ["author", "Artist"], ["year", "Year"]]
-    : a === "video"
-    ? [["auto", "Genre"], ["series", "Film series"], ["year", "Year"], ["none", "No grouping"]]
-    : a === "articles"
-    ? [["subject", "Subject"], ["journal", "Journal"], ["year", "Year"], ["author", "Author"], ["tag", "Tag"], ["collection", "Collection"]]
-    : [["subject", "Subject"], ["year", "Year"], ["fiction", "Fiction or non-fiction"], ["author", "Author"], ["tag", "Tag"], ["collection", "Collection"]];
-  $("#groupBy").innerHTML = groupOpts.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
-  if (!groupOpts.some(([v]) => v === S.groupBy)) S.groupBy = groupOpts[0][0];
-  $("#groupBy").value = S.groupBy;
+  paintGroups(a);
   $("#viewSeg").hidden = true;   // Cards is the only view now
   $("#search").placeholder = a === "articles" ? "Search articles, authors, journals, tags…" : a === "books" ? "Search books, authors, series…" : a === "music" ? "Search songs, albums, artists…" : a === "video" ? "Search shows and films…" : a === "journal" ? "Search your journal…" : "Search titles, authors, tags…";
   try { localStorage.setItem("inkwell-area", a); } catch (e) {}
@@ -1741,7 +1799,7 @@ function savePrefs() {
   S.groupBy = p.groupBy || S.settings.group_by || "auto";
   S.sortBy = p.sortBy || "added";
   setThemeAttr(S.settings.theme);
-  if (!["subject", "year", "fiction", "author", "tag", "collection", "journal"].includes(S.groupBy)) S.groupBy = "subject";
+  if (!["subject", "topic", "genre", "series", "year", "fiction", "author", "tag", "collection", "journal"].includes(S.groupBy)) S.groupBy = "subject";
   $("#groupBy").value = S.groupBy; $("#sortBy").value = S.sortBy;
   $$("#viewSeg button").forEach((b) => b.classList.toggle("on", b.dataset.view === S.view));
   TAX = await api.get("/api/genres").catch(() => TAX);

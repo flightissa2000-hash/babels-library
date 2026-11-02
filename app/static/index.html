@@ -26,9 +26,14 @@
     <span class="sr">Search</span>
     <input id="search" type="search" placeholder="Search titles, authors, tags…" autocomplete="off">
   </label>
+  <div class="seg" id="ficSeg" role="radiogroup" aria-label="Fiction or non-fiction" hidden>
+    <button data-fic="all" class="on">All</button><button data-fic="fiction">Fiction</button><button data-fic="nonfiction">Non-fiction</button>
+  </div>
   <div class="seg" id="kindSeg" role="radiogroup" aria-label="Show">
     <button data-kind="all" class="on">All</button>
   </div>
+  <select id="ficSel" aria-label="Fiction or non-fiction"><option value="all">All books</option><option value="fiction">Fiction</option><option value="nonfiction">Non-fiction</option></select>
+  <select id="kindSel" aria-label="Show"></select>
   <label class="ctl"><span>Group</span>
     <select id="groupBy">
     </select>

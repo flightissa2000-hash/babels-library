@@ -3150,7 +3150,7 @@ def r_player_set(h):
 
 @route("GET", r"/api/genres")
 def r_genres(h):
-    h._send(200, {"genres": taxonomy.ALL_GENRES, "subjects": taxonomy.SUBJECTS, "topics": list(taxonomy.TOPICS) + [taxonomy.GENERAL_TOPIC]})
+    h._send(200, {"genres": taxonomy.ALL_GENRES, "genre_groups": {"fiction": taxonomy.FICTION_GENRES, "nonfiction": taxonomy.NONFICTION_GENRES}, "subjects": taxonomy.SUBJECTS, "topics": list(taxonomy.TOPICS) + [taxonomy.GENERAL_TOPIC]})
 
 
 ANALYSIS_VERSION = 4

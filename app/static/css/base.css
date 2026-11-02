@@ -281,7 +281,7 @@ body.area-video #kindSeg,body.area-video .ctl:has(#groupBy){visibility:hidden}
 .home-prog i{display:block;height:100%;background:var(--accent);border-radius:999px}
 .home-txt small{color:var(--ink-soft)}
 .home-txt .btn{align-self:flex-start;margin-top:4px}
-body.is-home #kindSeg,body.is-home #viewSeg{visibility:hidden}
+body.is-home #kindSeg,body.is-home #ficSeg,body.is-home #viewSeg{visibility:hidden}
 
 /* ---- Heist (calling-card) view ---- */
 .heist{display:grid;grid-template-columns:minmax(320px,1.05fr) 1fr;gap:28px;align-items:start}
@@ -2419,6 +2419,11 @@ body.ib-on .drawer{z-index:45}
 .topbar.tighter .ctl>span{display:none}
 .topbar.tightest #addBtn{font-size:0;padding-left:12px;padding-right:12px}
 .topbar.tightest #addBtn::after{content:"＋ Add";font-size:.92rem}
+/* last step: the Fiction and kind switches become two small dropdowns */
+.topbar:not(.cramped) #ficSel,.topbar:not(.cramped) #kindSel{display:none}
+.topbar.cramped #ficSeg,.topbar.cramped #kindSeg{display:none}
+.topbar.cramped{column-gap:8px}
+body.is-home #ficSel,body.is-home #kindSel,body.area-video #kindSel{visibility:hidden}
 
 .btm-rank{cursor:pointer}
 .btm-rank:hover .btm-rinfo b{text-decoration:underline}
