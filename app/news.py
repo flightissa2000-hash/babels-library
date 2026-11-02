@@ -57,7 +57,7 @@ SCIENCE = [
     ("chem", "Chemistry & materials", [PX.format("chemistry"), PX.format("nanotech"), J["nchem"]]),
     ("tech", "Technology & computing", [PX.format("technology"), SD.format("computers_math"), J["natmi"], J["science"]]),
 ]
-OUTLET = {"phys.org": "Phys.org", "techxplore.com": "Tech Xplore", "medicalxpress.com": "Medical Xpress", "sciencedaily.com": "ScienceDaily", "mit.edu": "MIT News", "nih.gov": "NIH",
+OUTLET = {"aljazeera.com": "Al Jazeera", "phys.org": "Phys.org", "techxplore.com": "Tech Xplore", "medicalxpress.com": "Medical Xpress", "sciencedaily.com": "ScienceDaily", "mit.edu": "MIT News", "nih.gov": "NIH",
           "nasa.gov": "NASA", "esa.int": "ESA", "harvard.edu": "Harvard Gazette", "cam.ac.uk": "University of Cambridge", "science.org": "Science", "nytimes.com": "The New York Times", "bbc.co.uk": "BBC News", "bbc.com": "BBC News", "theguardian.com": "The Guardian",
           "npr.org": "NPR", "newscientist.com": "New Scientist", "arstechnica.com": "Ars Technica", "quantamagazine.org": "Quanta Magazine",
           "scientificamerican.com": "Scientific American"}
@@ -189,6 +189,16 @@ def science():
     with concurrent.futures.ThreadPoolExecutor(4) as ex:
         rows = list(ex.map(lambda s: {"key": s[0], "label": s[1], "items": _many(s[2], 30, mix=True)}, SCIENCE))
     return {"sections": rows}
+
+
+# ---------------------------------------------------------------- the world desk (the phones' Bulletin)
+WORLD = ["https://feeds.bbci.co.uk/news/world/rss.xml", "https://www.aljazeera.com/xml/rss/all.xml",
+         "https://feeds.npr.org/1004/rss.xml", "https://www.theguardian.com/world/rss"]
+
+
+def world():
+    """The world's news, newest first from several newsrooms (the same story from two of them shows once)."""
+    return {"items": _many(WORLD, 30)}
 
 
 # ---------------------------------------------------------------- the local desk

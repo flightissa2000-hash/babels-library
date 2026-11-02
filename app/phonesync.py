@@ -620,7 +620,7 @@ def _make_handler():
                         if meth == want[0] and mm:
                             return fn(self, *mm.groups())
                     return self._send(404, {"error": "not found"})
-                m = re.match(r"^/sync/news/(science|local|place|save|article|alerts)$", path)
+                m = re.match(r"^/sync/news/(science|world|local|place|save|article|alerts)$", path)
                 if m:
                     for meth, rx, fn in server.ROUTES:
                         if meth == method and rx.match("/api/news/" + m.group(1)):
@@ -666,7 +666,7 @@ def _make_handler():
                             return fn(self)
                     return self._send(404, {"error": "not found"})
                 # the catalogue (Discover) for the phone: the computer's own routes, passed through
-                m = re.match(r"^/sync/cat/(promos|browse|subjects|search|byauthor|cover|info|reviews|series|seriesof|authors|ignore|wish)$", path)
+                m = re.match(r"^/sync/cat/(promos|browse|restock|subjects|search|byauthor|cover|info|reviews|series|seriesof|authors|ignore|wish)$", path)
                 if m:
                     target = "/api/wishlist" if m.group(1) == "wish" else "/api/discover/" + m.group(1)
                     for meth, rx, fn in server.ROUTES:

@@ -1551,6 +1551,14 @@ def r_news_science(h):
     h._send(200, news.science())
 
 
+@route("GET", r"/api/news/world")
+def r_news_world(h):
+    import news
+    if h.query.get("fresh"):
+        news.forget_feeds()
+    h._send(200, news.world())
+
+
 @route("GET", r"/api/news/article")
 def r_news_article(h):
     """A story as text, for reading inside the Gazette."""
