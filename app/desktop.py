@@ -56,6 +56,15 @@ def running_root():
 
 
 _here_root = os.path.dirname(HERE)
+# moved from Settings: this old copy just opens the new one (if the new one's there)
+try:
+    with open(os.path.join(_here_root, "moved_to.txt"), encoding="utf-8") as _f:
+        _new_app = os.path.join(_f.read().strip(), "app", "desktop.py")
+    if os.path.exists(_new_app):
+        subprocess.Popen([sys.executable, _new_app], cwd=os.path.dirname(os.path.dirname(_new_app)))
+        sys.exit(0)
+except OSError:
+    pass
 _other = running_root()
 if _other and os.path.normcase(os.path.abspath(_other)) != os.path.normcase(_here_root) and \
         (_other != "?" or os.path.exists(os.path.join(_here_root, "relocate.json"))):
@@ -613,7 +622,9 @@ def refresh_shortcuts():
     if os.name != "nt":
         return
     mark = os.path.join(HERE, ".shortcuts-babel")
-    if os.path.exists(mark):
+    # (the mark travels with the drive: on another computer the shortcuts are still missing)
+    menu = os.path.join(os.environ.get("APPDATA") or "", "Microsoft", "Windows", "Start Menu", "Programs", "Babel's Library.lnk")
+    if os.path.exists(mark) and os.path.exists(menu):
         return
     try:
         pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")

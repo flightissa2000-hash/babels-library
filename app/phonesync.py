@@ -791,12 +791,28 @@ def _post_address():
         print("[inkwell] couldn't post the away-from-home address:", e)
 
 
+def _clear_old_tunnels(exe):
+    """A force-closed app leaves its cloudflared running: close the ones whose app is gone."""
+    if os.name != "nt":
+        return
+    ps = ("$all = Get-CimInstance Win32_Process; $by = @{}; $all | % { $by[$_.ProcessId] = $_ }; "
+          "$all | ? { $_.ExecutablePath -eq $env:BABEL_TUNNEL_EXE } | "
+          "? { $o = $by[$_.ParentProcessId]; -not $o -or $o.CreationDate -gt $_.CreationDate } | "
+          "% { Stop-Process -Id $_.ProcessId -Force }")
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps], env={**os.environ, "BABEL_TUNNEL_EXE": exe},
+                       capture_output=True, timeout=60, creationflags=0x08000000)
+    except Exception as e:
+        print("[inkwell] couldn't close old tunnels:", e)
+
+
 def start_tunnel():
     if _tunnel["proc"] and _tunnel["proc"].poll() is None:
         return
     _tunnel.update(url="", error="")
     try:
         exe = _cloudflared()
+        _clear_old_tunnels(exe)
         p = subprocess.Popen([exe, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
                              creationflags=0x08000000 if os.name == "nt" else 0)

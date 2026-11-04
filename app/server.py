@@ -2859,6 +2859,23 @@ def r_lib_switch(h):
     h._send(200, {"ok": True, "folder": new})
 
 
+# ---- moving the whole app and library (moveapp.py). These need the X-Babel header: other sites' pages can't send it
+@route("POST", r"/api/app/move/plan")
+def r_move_plan(h):
+    if h.headers.get("X-Babel") != "1":
+        return h._send(403, {"error": "forbidden"})
+    import moveapp
+    h._send(200, moveapp.plan(h.json_body().get("folder")))
+
+
+@route("POST", r"/api/app/move")
+def r_move(h):
+    if h.headers.get("X-Babel") != "1":
+        return h._send(403, {"error": "forbidden"})
+    import moveapp
+    h._send(200, moveapp.start(h.json_body().get("folder")))
+
+
 @route("POST", r"/api/items/(\d+)/rename-file")
 def r_rename_file(h, iid):
     raw = store.get_item(int(iid), raw=True)

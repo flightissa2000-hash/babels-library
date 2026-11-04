@@ -33,7 +33,10 @@ library in `F:\Library`. File locations are saved relative to the drive, so the 
 - **Linux:** run `bash start-inkwell.sh` once (it adds Babel's Library to your applications menu). For the native window install
   GTK WebKit, e.g. `sudo apt install python3-gi gir1.2-webkit2-4.1`; without it Babel's Library opens in a Chrome/Chromium/Edge
   app window. Folders picked on one system (inbox, Zotero, Calibre) fall back to this computer's defaults on the other.
-- **Moving an install:** put a `relocate.json` next to the new copy's `app` folder
+- **Moving everything from Settings:** Settings → Move Babel's Library → Move everything… copies the program, data and
+  library into the folder you choose (as `Inkwell` and `Library`), checks them, then restarts from there. The old copy is
+  left in place and starting it opens the new one; delete it yourself when you're happy.
+- **Moving an install by hand:** put a `relocate.json` next to the new copy's `app` folder
   (`{"from": "<old Babel's Library folder>", "library": "@/Library"}`); the first start copies the library data across and moves
   every library file, with progress shown at the top of the window.
 

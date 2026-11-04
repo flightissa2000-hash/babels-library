@@ -1533,6 +1533,9 @@ function bind() {
   Media.bindPlayer();
   Coll.bind();
   $("#libGo").onclick = applyLibSwitch;
+  $("#moveAppBtn").onclick = () => { $("#moveFolder").value = ""; $("#movePlan").textContent = ""; $("#moveGo").disabled = true; $("#moveDialog").showModal(); };
+  $("#moveFolder").oninput = () => { clearTimeout(S.moveTimer); $("#moveGo").disabled = true; S.moveTimer = setTimeout(planMove, 400); };
+  $("#moveGo").onclick = startMove;
   $("#viewSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; setView(b.dataset.view); };
   Wheel.bind();
   $("#journalBtn").onclick = () => ($("#jbModal.open") ? Journal.close() : Journal.openHere());
@@ -1798,6 +1801,32 @@ async function applyLibSwitch() {
     $$(".libPath").forEach((e) => e.textContent = folder);
     toast($("input[name=libMode]:checked").value === "move" ? "Moving your library. Progress shows at the top." : "Library folder changed");
   } catch (err) { toast(err.message, "error"); }
+}
+
+async function moveCall(path, folder) {
+  const r = await fetch(path, { method: "POST", headers: { "X-Babel": "1", "Content-Type": "application/json" }, body: JSON.stringify({ folder }) });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || "That folder can't be used.");
+  return d;
+}
+async function planMove() {
+  const folder = $("#moveFolder").value.trim(), out = $("#movePlan");
+  if (!folder) return void (out.textContent = "");
+  const gb = (n) => (n / 2 ** 30).toFixed(n < 2 ** 30 ? 2 : 1) + " GB";
+  out.textContent = "Measuring…";
+  try {
+    const p = await moveCall("/api/app/move/plan", folder);
+    if (folder !== $("#moveFolder").value.trim()) return;
+    out.textContent = `Creates ${p.app} and ${p.library}. ${p.files.toLocaleString()} files, ${gb(p.need)} left to copy, ${gb(p.free)} free.` + (p.enough ? "" : " There isn't enough free space on that drive.");
+    $("#moveGo").disabled = !p.enough;
+  } catch (err) { out.textContent = err.message; }
+}
+async function startMove() {
+  try {
+    await moveCall("/api/app/move", $("#moveFolder").value.trim());
+    $("#moveDialog").close();
+    toast("Moving Babel's Library. Progress shows at the top.");
+  } catch (err) { $("#movePlan").textContent = err.message; }
 }
 
 function setView(v) {

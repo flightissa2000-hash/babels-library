@@ -151,6 +151,10 @@
     <div class="full row"><code id="libFolder" style="flex:1"></code><button class="btn" type="button" data-action="switch-lib">Change…</button><button class="btn" type="button" data-action="reveal-lib">Open</button><button class="btn" type="button" data-action="rescan" title="Recheck the library folder: add files that appeared, find files that moved, and remove entries whose files are gone">↻ Refresh library</button></div>
     <p class="hint full" style="margin:0">Every file Babel's Library manages lives here: Articles, Books, Graphic Novels, Music (by artist and album), TV (by series and season) and Movies. You can switch to a different folder at any time.</p>
   </div>
+  <h3>Move Babel's Library</h3>
+  <div class="form-grid">
+    <div class="full row"><p class="hint" style="flex:1;margin:0">Moves the program, your data and every library file to a folder you choose, such as a drive on a new computer. It only switches over once everything has been copied and checked.</p><button class="btn" type="button" id="moveAppBtn">Move everything…</button></div>
+  </div>
   <h3>Automatic updates</h3>
   <p class="status-row" id="inboxStatus"></p>
   <div class="form-grid" id="settingsForm">
@@ -283,6 +287,14 @@
   </div>
   <label class="row"><input type="checkbox" id="libScan" checked> Also add any books, articles, comics or media already in the new folder</label>
   <div class="dlg-foot"><button class="btn primary" type="button" id="libGo">Use this folder</button></div>
+</dialog>
+
+<dialog id="moveDialog" class="dlg">
+  <form method="dialog" class="dlg-head"><h2>Move Babel's Library</h2><button class="icon-btn" value="cancel" title="Close">✕</button></form>
+  <p class="hint">You can keep using the app while it copies. It then restarts from the new folder. The old copy stays where it is until you delete it yourself.</p>
+  <div class="row"><input id="moveFolder" style="flex:1" placeholder="Folder to move to"><button class="btn" type="button" data-pick="#moveFolder">Browse…</button></div>
+  <p class="hint" id="movePlan" aria-live="polite"></p>
+  <div class="dlg-foot"><button class="btn primary" type="button" id="moveGo" disabled>Move everything</button></div>
 </dialog>
 
 <div class="player" id="player" hidden>
