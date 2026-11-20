@@ -3125,3 +3125,40 @@ html.reader-split .ck{left:var(--rsplit,50vw)}
 
 /* Home (the Bulletin and Recently opened): no Collections bar, it does nothing there */
 body[data-g-area=home] #collBar{display:none!important}
+
+/* ---------------------------------------------------------------- Settings: side menu of groups, one shown at a time */
+.set-dlg{width:min(1040px,96vw);display:flex;flex-direction:column;max-height:92vh;padding-bottom:0}
+.set-dlg[open]{display:flex}
+.set-wrap{display:grid;grid-template-columns:200px minmax(0,1fr);gap:22px;min-height:0;flex:1}
+.set-nav{display:flex;flex-direction:column;gap:4px;padding:4px 0;border-right:1px solid color-mix(in srgb,var(--line,#888) 40%,transparent);padding-right:14px;overflow-y:auto}
+.set-tab{display:flex;align-items:center;gap:10px;padding:9px 12px;border:0;border-radius:10px;background:none;color:var(--ink-soft);font:600 .9rem var(--font-ui);text-align:left;cursor:pointer}
+.set-tab i{font-style:normal;width:22px;text-align:center;font-size:1.05rem}
+.set-tab:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.set-tab.on{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--ink)}
+.set-tab[hidden]{display:none}
+.set-body{overflow-y:auto;min-height:0;padding:2px 6px 18px 2px;max-height:calc(92vh - 150px)}
+.set-pane{display:none}
+.set-pane.on{display:block}
+.set-h{margin:2px 0 14px;font-size:1.25rem}
+.set-group{padding:14px 16px;margin-bottom:12px;border-radius:14px;background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid color-mix(in srgb,var(--line,#888) 30%,transparent)}
+.set-group>h4{margin:0 0 10px;font:700 .72rem var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.set-group .form-grid{margin:0}
+.set-group .hint{line-height:1.45}
+.set-group>.ab-on{margin:0}
+/* (checkbox rows: the box sits right before its words, whatever the theme does to inputs) */
+.set-dlg input[type=checkbox]{width:auto!important;flex:none;margin:0;min-height:0}
+.set-dlg label:has(>input[type=checkbox]){display:flex;flex-direction:row;align-items:center;gap:8px;text-align:left}
+.set-dlg .dlg-foot{position:sticky;bottom:0;margin:0 -24px;padding:12px 24px;background:inherit;border-top:1px solid color-mix(in srgb,var(--line,#888) 30%,transparent)}
+@media (max-width:760px){.set-wrap{grid-template-columns:1fr}.set-nav{flex-direction:row;flex-wrap:wrap;border-right:0;padding-right:0}.set-tab span{display:none}}.set-col{grid-template-columns:1fr!important;gap:10px}
+.set-sub{margin:10px 0 0;font:700 .72rem var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.set-sub:first-child{margin-top:0}
+.set-group>h4:has(+ .set-col){display:none}
+.set-dlg .row{flex-wrap:wrap;align-items:center;gap:8px 12px}
+.set-dlg .row>.btn,.set-dlg .row>button{flex:none;white-space:nowrap}
+.set-dlg .row>.hint{flex:1 1 260px}
+#sleepSet label{flex:1 1 100%}
+#sleepSet select{width:auto;display:inline-block;margin-left:6px}
+.set-col label:not(:has(input[type=checkbox])){max-width:360px}.set-dlg .ab-on{display:grid;grid-template-columns:auto 1fr;align-items:start;column-gap:8px;row-gap:2px}
+.set-dlg .ab-on>input{margin-top:3px}
+.set-dlg .ab-on>.hint{grid-column:2}
+.set-dlg label.ab-on:has(>input[type=checkbox]){display:grid;grid-template-columns:auto 1fr;align-items:start;column-gap:8px;flex-wrap:nowrap}

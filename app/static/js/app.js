@@ -1589,8 +1589,22 @@ async function openSettings() {
       if (S.home && $("#library")) render();
     } catch (err) { toast(err.message, "error"); }
   };
+  setPane();
   $("#settingsDialog").showModal();
 }
+/* Settings: a side menu of groups, one shown at a time (the last one you looked at opens again) */
+function setPane(k) {
+  const dlg = $("#settingsDialog");
+  // (the Window group is there only in the desktop app, not in a browser tab)
+  $$("[data-set-tab=window]", dlg).forEach((b) => (b.hidden = $("#deskSettings").hidden));
+  try { k = k || localStorage.getItem("inkwell-settab") || "look"; } catch (e) { k = k || "look"; }
+  if (!$(`[data-set-pane="${k}"]`, dlg) || (k === "window" && $("#deskSettings").hidden)) k = "look";
+  $$(".set-pane", dlg).forEach((p) => p.classList.toggle("on", p.dataset.setPane === k));
+  $$(".set-tab", dlg).forEach((b) => b.classList.toggle("on", b.dataset.setTab === k));
+  try { localStorage.setItem("inkwell-settab", k); } catch (e) {}
+  const body = $(".set-body", dlg); if (body) body.scrollTop = 0;
+}
+document.addEventListener("click", (e) => { const t = e.target.closest?.("[data-set-tab]"); if (t) setPane(t.dataset.setTab); });
 function updateBibLink() { $("#bibLink").href = "/api/export/citations?style=" + encodeURIComponent($("#bibStyle").value); }
 
 /* ---------------- status polling ---------------- */

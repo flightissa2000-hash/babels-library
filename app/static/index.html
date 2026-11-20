@@ -155,12 +155,27 @@
 </dialog>
 
 <!-- Settings dialog -->
-<dialog id="settingsDialog" class="dlg wide">
+<dialog id="settingsDialog" class="dlg wide set-dlg">
   <form method="dialog" class="dlg-head"><h2>Settings</h2><button class="icon-btn" value="cancel" title="Close">✕</button></form>
-  <h3>Look</h3>
-  <div class="theme-picker" id="themePicker"></div>
-  <h3>Library</h3>
-  <div class="form-grid"><label>Sort books by<select id="sortBy">
+  <div class="set-wrap">
+  <nav class="set-nav" aria-label="Settings sections"><button type="button" class="set-tab" data-set-tab="look"><i>🎨</i><span>Look</span></button><button type="button" class="set-tab" data-set-tab="library"><i>📚</i><span>Library</span></button><button type="button" class="set-tab" data-set-tab="reading"><i>📰</i><span>Bulletin & News</span></button><button type="button" class="set-tab" data-set-tab="web"><i>🔎</i><span>Catalogue & web</span></button><button type="button" class="set-tab" data-set-tab="window"><i>🖥</i><span>Window</span></button><button type="button" class="set-tab" data-set-tab="phone"><i>📱</i><span>Phone</span></button><button type="button" class="set-tab" data-set-tab="more"><i>⋯</i><span>AI & export</span></button></nav>
+  <div class="set-body">
+<section class="set-pane" data-set-pane="look">
+  <h3 class="set-h">Look</h3>
+  <div class="set-group"><h4>Theme</h4>
+<div class="theme-picker" id="themePicker"></div>
+  </div>
+</section>
+<section class="set-pane" data-set-pane="library">
+  <h3 class="set-h">Library</h3>
+  <div class="set-group"><h4>Library folder</h4>
+<div class="form-grid">
+    <div class="full row"><code id="libFolder" style="flex:1"></code><button class="btn" type="button" data-action="switch-lib">Change…</button><button class="btn" type="button" data-action="reveal-lib">Open</button><button class="btn" type="button" data-action="rescan" title="Recheck the library folder: add files that appeared, find files that moved, and remove entries whose files are gone">↻ Refresh library</button></div>
+    <p class="hint full" style="margin:0">Every file Babel's Library manages lives here: Articles, Books, Graphic Novels, Music (by artist and album), TV (by series and season) and Movies. You can switch to a different folder at any time.</p>
+  </div>
+  </div>
+  <div class="set-group"><h4>Sorting</h4>
+<div class="form-grid"><label>Sort books by<select id="sortBy">
       <option value="added">Recently added</option>
       <option value="opened">Recently read</option>
       <option value="title">Title</option>
@@ -169,23 +184,9 @@
       <option value="year-asc">Oldest first</option>
       <option value="notes">Most annotated</option>
     </select></label></div>
-  <h3>The Bulletin</h3>
-  <div class="form-grid"><label>Challenge lasts<select id="bulletinPeriod">
-      <option value="week">A week (from Monday)</option>
-      <option value="month">A month (from the 1st)</option>
-    </select></label>
-    <p class="hint full" style="margin:0">For this profile only: each profile keeps its own challenge and how long it lasts.</p></div>
-  <h3>Library folder</h3>
-  <div class="form-grid">
-    <div class="full row"><code id="libFolder" style="flex:1"></code><button class="btn" type="button" data-action="switch-lib">Change…</button><button class="btn" type="button" data-action="reveal-lib">Open</button><button class="btn" type="button" data-action="rescan" title="Recheck the library folder: add files that appeared, find files that moved, and remove entries whose files are gone">↻ Refresh library</button></div>
-    <p class="hint full" style="margin:0">Every file Babel's Library manages lives here: Articles, Books, Graphic Novels, Music (by artist and album), TV (by series and season) and Movies. You can switch to a different folder at any time.</p>
   </div>
-  <h3>Move Babel's Library</h3>
-  <div class="form-grid">
-    <div class="full row"><p class="hint" style="flex:1;margin:0">Moves the program, your data and every library file to a folder you choose, such as a drive on a new computer. It only switches over once everything has been copied and checked.</p><button class="btn" type="button" id="moveAppBtn">Move everything…</button></div>
-  </div>
-  <h3>Automatic updates</h3>
-  <p class="status-row" id="inboxStatus"></p>
+  <div class="set-group"><h4>Adding new files automatically</h4>
+<p class="status-row" id="inboxStatus"></p>
   <div class="form-grid" id="settingsForm">
     <div class="full row"><label style="flex:1">Inbox folder <input name="watch_folder" id="inboxFolder"></label><button class="btn" type="button" data-pick="#inboxFolder" style="align-self:flex-end">Browse…</button></div>
     <label class="full"><input type="checkbox" name="inbox_move"> Move files out of the inbox into the library folder (instead of leaving a copy in the inbox)</label>
@@ -193,8 +194,30 @@
     <label>Check every <input type="number" name="watch_interval" min="3" max="600" style="width:5em"> seconds</label>
     <label class="full"><input type="checkbox" name="auto_lookup"> Fill in details from CrossRef / OpenLibrary when a file has a DOI or ISBN (online only)</label>
   </div>
-  <h3>Book catalogue</h3>
-  <p class="hint">Two free keys add more to the catalogue's “Hot off the press” and to each book's “More info” page. Both are optional.</p>
+  </div>
+  <div class="set-group"><h4>Move Babel's Library</h4>
+<div class="form-grid">
+    <div class="full row"><p class="hint" style="flex:1;margin:0">Moves the program, your data and every library file to a folder you choose, such as a drive on a new computer. It only switches over once everything has been copied and checked.</p><button class="btn" type="button" id="moveAppBtn">Move everything…</button></div>
+  </div>
+  </div>
+</section>
+<section class="set-pane" data-set-pane="reading">
+  <h3 class="set-h">Bulletin &amp; News</h3>
+  <div class="set-group"><h4>The Bulletin</h4>
+<div class="form-grid"><label>Challenge lasts<select id="bulletinPeriod">
+      <option value="week">A week (from Monday)</option>
+      <option value="month">A month (from the 1st)</option>
+    </select></label>
+    <p class="hint full" style="margin:0">For this profile only: each profile keeps its own challenge and how long it lasts.</p></div>
+  </div>
+  <div class="set-group"><h4>News</h4>
+<label class="ab-on"><input type="checkbox" id="newsAlertsOn"> Tell me when a new event turns up in the News “Events” section <span class="hint">(checked in the background every few hours; your paired phone gets a notification too)</span></label>
+  </div>
+</section>
+<section class="set-pane" data-set-pane="web">
+  <h3 class="set-h">Catalogue &amp; web</h3>
+  <div class="set-group"><h4>Book catalogue keys</h4>
+<p class="hint">Two free keys add more to the catalogue's “Hot off the press” and to each book's “More info” page. Both are optional.</p>
   <div class="form-grid" id="dvKeys">
     <label class="full">New York Times Books API key <input name="nyt_key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key"></label>
     <p class="full hint">The bestseller lists and NYT reviews. Get one at developer.nytimes.com: sign in, choose Apps → New App, switch on “Books API”, save, and copy the key.</p>
@@ -202,45 +225,67 @@
     <p class="full hint">New releases with exact dates, ratings and readers' reviews. Get it at hardcover.app: sign in, open Settings → Hardcover API, and copy the token.</p>
     <div class="full row"><button class="btn" type="button" id="dvTestKeys">Save and test</button><span class="hint" id="dvKeyResult"></span></div>
   </div>
-  <h3>News</h3>
-  <label class="ab-on"><input type="checkbox" id="newsAlertsOn"> Tell me when a new event turns up in the News “Events” section <span class="hint">(checked in the background every few hours; your paired phone gets a notification too)</span></label>
-  <h3>Your search sites</h3>
-  <p class="hint">Websites of your own choosing, shown as buttons on a catalogue entry's “More info” page next to the other links. Put <code>{q}</code> in the address where the title goes (and <code>{author}</code> for the author, if the site wants it), then tick the departments it's for. They open in their own window.</p>
+  </div>
+  <div class="set-group"><h4>Your search sites</h4>
+<p class="hint">Websites of your own choosing, shown as buttons on a catalogue entry's “More info” page next to the other links. Put <code>{q}</code> in the address where the title goes (and <code>{author}</code> for the author, if the site wants it), then tick the departments it's for. They open in their own window.</p>
   <div class="ss-list" id="searchSites"></div>
-  <label class="ab-on"><input type="checkbox" id="adblockOn"> Block ads, pop-ups and trackers in the reading window <span class="hint" id="adblockStatus"></span></label>
   <div class="row"><button class="btn" type="button" id="ssAdd">＋ Add a site</button><span class="hint">Example: <code>https://www.example.com/search?q={q}</code></span></div>
-  <div id="deskSettings" hidden>
-  <h3>Desktop widget</h3>
-  <div class="form-grid" id="deskForm">
+  </div>
+  <div class="set-group"><h4>Browser</h4>
+  <label class="ab-on"><input type="checkbox" id="adblockOn"> Block ads, pop-ups and trackers in the reading window <span class="hint" id="adblockStatus"></span></label>
+  </div>
+</section>
+<div id="deskSettings" hidden>
+<section class="set-pane" data-set-pane="window">
+  <h3 class="set-h">Window</h3>
+  <div class="set-group"><h4>Window</h4>
+<div class="form-grid set-col" id="deskForm">
+    <h4 class="set-sub full">Starting</h4>
     <label>When Babel's Library starts, open<select name="start_mode"><option value="full">The full window</option><option value="widget">The desktop widget</option></select></label>
-    <label><input type="checkbox" name="widget_locked"> Pin the widget in place (it can't be moved or resized)</label>
+    <label><input type="checkbox" name="main_fullscreen"> Open Babel's Library full screen on start</label>
+    <label><input type="checkbox" id="startWithWindows"> Start Babel's Library when Windows starts <span class="hint">(it waits for the library's drive to be plugged in)</span></label>
+    <h4 class="set-sub full">The widget</h4>
     <label>Widget position<select name="widget_corner">
       <option value="top-right">Top right</option><option value="top-left">Top left</option>
       <option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option>
       <option value="custom">Where I put it</option></select></label>
-    <label><input type="checkbox" id="startWithWindows"> Start Babel's Library when Windows starts <span class="hint">(it waits for the library's drive to be plugged in)</span></label>
-    <label><input type="checkbox" name="main_fullscreen"> Open Babel's Library full screen on start</label>
-    <div class="full row" id="sleepSet"></div>
+    <label><input type="checkbox" name="widget_locked"> Pin the widget in place (it can't be moved or resized)</label>
     <label><input type="checkbox" name="widget_autohide"> Hide the widget's title bar until you point at its top edge</label>
     <div class="full row"><button class="btn" type="button" id="showWidget">Switch to the widget</button><span class="hint">Babel's Library is either this full window or the widget. Drag the widget by its title bar, then use its pin to fix it in place. Other windows can sit in front of it. Double-click it to come back here full screen.</span></div>
+    <h4 class="set-sub full">Sleep screen</h4>
+    <div class="full row" id="sleepSet"></div>
   </div>
-  </div>
-  <h3>Phone</h3>
-  <p class="hint">The Babel's Library app for Android keeps the same library, reading positions, progress and watched marks as this computer, and fetches files from it. Pair a phone once: open the app, tap <b>Pair with computer</b>, and type the code below.</p>
+</section>
+</div>
+<section class="set-pane" data-set-pane="phone">
+  <h3 class="set-h">Phone</h3>
+  <div class="set-group"><h4>Phones and tablets</h4>
+  <p class="hint">The Babel's Library app (Android, or the iPhone web app) keeps the same library, reading positions, progress and watched marks as this computer, and fetches files from it. Pair a phone once: open the app, tap <b>Pair with computer</b>, and type the code below.</p>
   <div class="ph-box" id="phoneBox"></div>
+  </div>
+  <div class="set-group"><h4>Away from home</h4>
   <label class="ab-on"><input type="checkbox" id="phoneRemote"> Reach this library from anywhere (cellular data too), through a free Cloudflare tunnel <span class="hint" id="phoneRemoteNote"></span></label>
-  <h3>Local AI</h3>
-  <div class="ai-status" id="aiStatus"></div>
+  </div>
+</section>
+<section class="set-pane" data-set-pane="more">
+  <h3 class="set-h">AI &amp; export</h3>
+  <div class="set-group"><h4>Local AI</h4>
+<div class="ai-status" id="aiStatus"></div>
   <div class="form-grid">
     <label>Ollama address <input name="ollama_url" form="x" id="ollamaUrl"></label>
     <label>Model <select id="ollamaModel"></select></label>
   </div>
-  <h3>Export</h3>
-  <div class="row wrap">
+  </div>
+  <div class="set-group"><h4>Export</h4>
+<div class="row wrap">
     <a class="btn" href="/api/export/annotations?format=md" download>All annotations (Markdown)</a>
     <a class="btn" href="/api/export/annotations?format=json" download>All annotations (JSON)</a>
     <select id="bibStyle"><option>APA (7th ed.)</option><option>MLA (9th ed.)</option><option>Chicago (17th ed.)</option></select>
     <a class="btn" id="bibLink" href="#" download>Bibliography</a>
+  </div>
+  </div>
+</section>
+  </div>
   </div>
   <div class="dlg-foot"><button class="btn primary" id="saveSettings">Save settings</button></div>
 </dialog>
