@@ -3122,3 +3122,6 @@ html.reader-split .ck{left:var(--rsplit,50vw)}
 .lv-table tr.is-bundle td:first-child b{font-weight:800}
 :where(#library[data-layout]) :where(button[data-fold-open],tr[data-fold-open]){font:inherit;color:inherit;text-align:left;cursor:pointer}
 
+
+/* Home (the Bulletin and Recently opened): no Collections bar, it does nothing there */
+body[data-g-area=home] #collBar{display:none!important}
