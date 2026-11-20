@@ -7,7 +7,11 @@
 <link rel="icon" href="icon.png">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/themes.css">
-<script>try{var t=localStorage.getItem('inkwell-theme');if(['gruvbox'].indexOf(t)>=0)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="css/galaxy.gen.css">
+<link rel="stylesheet" href="css/galaxy.css">
+<link rel="stylesheet" href="css/sky.css">
+<link rel="stylesheet" href="css/sleep.css">
+<script>try{var t=localStorage.getItem('inkwell-theme');if(['gruvbox','galaxy'].indexOf(t)>=0)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -38,6 +42,24 @@
     <select id="groupBy">
     </select>
   </label>
+  <div class="lay-pick" id="layoutCtl" hidden>
+    <button class="lay-btn" id="layoutBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="Layout" aria-label="Layout">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
+    </button>
+    <div class="lay-menu" id="layoutMenu" role="menu" hidden>
+      <button data-layout="heist" role="menuitemradio"><i>🃏</i>Cards</button>
+      <h4>Efficient</h4>
+      <button data-layout="list" role="menuitemradio"><i>☰</i>List</button>
+      <button data-layout="table" role="menuitemradio"><i>▤</i>Table</button>
+      <button data-layout="board" role="menuitemradio"><i>📋</i>Progress board</button>
+      <button data-layout="index" role="menuitemradio"><i>🔤</i>A–Z index</button>
+      <h4>Fun</h4>
+      <button data-layout="stars" role="menuitemradio"><i>✨</i>Star chart</button>
+      <button data-layout="cork" role="menuitemradio"><i>📌</i>Corkboard</button>
+      <button data-layout="timeline" role="menuitemradio"><i>⏳</i>Timeline</button>
+      <button data-layout="mosaic" role="menuitemradio"><i>🧩</i>Mosaic</button>
+    </div>
+  </div>
   <div class="seg views" id="viewSeg" hidden role="radiogroup" aria-label="View">
     <button data-view="catalog" title="Card catalogue"><svg viewBox="0 0 24 24"><path d="M3 4h18v7H3zm2 2v3h14V6zm5 1h4v1h-4zM3 13h18v7H3zm2 2v3h14v-3zm5 1h4v1h-4z"/></svg><span>Catalogue</span></button>
     <button data-view="heist" title="Calling cards"><svg viewBox="0 0 24 24"><path d="M3 6l17-3-2 6 4 1-18 11 4-9-5-1z"/></svg><span>Cards</span></button>
@@ -46,6 +68,7 @@
   <button class="btn journal-btn" id="browserBtn" title="Browse the web (one tab, ads blocked, history, saved passwords)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg></button>
   <button class="btn journal-btn" id="newsBtn" title="The news: science, and your county, city, state and country"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 01-2-2zM17 9h3v8a2 2 0 01-2 2M7 8h7M7 11h7M7 14h4"/></svg><span>News</span></button>
   <button class="btn journal-btn" id="discoverBtn" title="Find books online and keep a wishlist"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span>Discover</span></button>
+  <button class="btn journal-btn" id="corkBtn" title="The corkboard: notes, clippings, links and things from your library, tied together with string"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v16H3zM8 8l4 3 4-2M8 15l4-4" fill="none"/><circle cx="8" cy="8" r="1.6"/><circle cx="16" cy="9" r="1.6"/><circle cx="8" cy="15" r="1.6"/></svg><span>Corkboard</span></button>
   <button class="btn journal-btn" id="journalBtn" title="Your review journal (J)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12a2 2 0 012 2v14a2 2 0 01-2 2H5zm2 0v18M10 7h6M10 10h6"/></svg><span>Journal</span></button>
   <button class="btn primary" id="addBtn">Add to library</button>
   <button class="icon-btn" id="fsBtn" title="Full screen (F11)" hidden><svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zM14 3h7v7h-2V5h-5zM3 14h2v5h5v2H3zM19 14h2v7h-7v-2h5z"/></svg></button>
@@ -146,6 +169,12 @@
       <option value="year-asc">Oldest first</option>
       <option value="notes">Most annotated</option>
     </select></label></div>
+  <h3>The Bulletin</h3>
+  <div class="form-grid"><label>Challenge lasts<select id="bulletinPeriod">
+      <option value="week">A week (from Monday)</option>
+      <option value="month">A month (from the 1st)</option>
+    </select></label>
+    <p class="hint full" style="margin:0">For this profile only: each profile keeps its own challenge and how long it lasts.</p></div>
   <h3>Library folder</h3>
   <div class="form-grid">
     <div class="full row"><code id="libFolder" style="flex:1"></code><button class="btn" type="button" data-action="switch-lib">Change…</button><button class="btn" type="button" data-action="reveal-lib">Open</button><button class="btn" type="button" data-action="rescan" title="Recheck the library folder: add files that appeared, find files that moved, and remove entries whose files are gone">↻ Refresh library</button></div>
@@ -191,6 +220,7 @@
       <option value="custom">Where I put it</option></select></label>
     <label><input type="checkbox" id="startWithWindows"> Start Babel's Library when Windows starts <span class="hint">(it waits for the library's drive to be plugged in)</span></label>
     <label><input type="checkbox" name="main_fullscreen"> Open Babel's Library full screen on start</label>
+    <div class="full row" id="sleepSet"></div>
     <label><input type="checkbox" name="widget_autohide"> Hide the widget's title bar until you point at its top edge</label>
     <div class="full row"><button class="btn" type="button" id="showWidget">Switch to the widget</button><span class="hint">Babel's Library is either this full window or the widget. Drag the widget by its title bar, then use its pin to fix it in place. Other windows can sit in front of it. Double-click it to come back here full screen.</span></div>
   </div>
@@ -217,6 +247,7 @@
 
 <!-- Reader -->
 <div id="reader" class="reader" hidden>
+  <div class="split-grip" id="rSplitGrip" title="Drag to resize" aria-hidden="true"></div>
   <header class="reader-bar">
     <button class="btn" id="readerClose">Back to library</button>
     <button class="btn" id="rToc" title="Table of contents (T)"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 5h2v2H4zm4 0h12v2H8zM4 11h2v2H4zm4 0h12v2H8zm-4 6h2v2H4zm4 0h12v2H8z"/></svg>Contents</button>
@@ -232,6 +263,9 @@
         <div class="seg" id="rMode"><button data-mode="scroll">Scrolling</button><button data-mode="single">One page</button><button data-mode="double">Two pages</button></div>
         <label class="wrow">Page width <input type="range" id="rWidth" min="35" max="100" step="1"></label>
         <label class="wrow" id="rFontRow">Text size <input type="range" id="rFont" min="70" max="200" step="5"></label>
+        <label class="wrow" id="rEqRow" hidden>Equation size <input type="range" id="rEq" min="1" max="3.5" step="0.1"></label>
+        <button class="btn sm" type="button" id="rDone" hidden title="Mark this as finished, or not">Mark finished</button>
+        <button class="btn sm" type="button" id="rCopy" hidden title="Make an EPUB of this paper that reflows on small screens, with figures and tables at the end">Reading copy</button>
         <p class="hint">In page modes, click the left or right side of the page to turn it.</p>
       </div>
     </div>
@@ -239,6 +273,8 @@
     <button class="btn" id="rPin" title="Drop a pin with a comment anywhere on the page" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6a2.5 2.5 0 010 5z"/></svg>Pin</button>
     <button class="btn" id="rDir" hidden>Left to right</button>
     <button class="icon-btn" id="rFull" title="Full screen / window"><svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zM14 3h7v7h-2V5h-5zM3 14h2v5h5v2H3zM19 14h2v7h-7v-2h5z"/></svg></button>
+    <button class="icon-btn" id="rSplit" title="Split screen: read on the left, use the rest of Babel's Library on the right" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3zm2 2v12h6V6zm8 0v12h6V6z"/></svg></button>
+    <button class="icon-btn" id="rJournal" title="Journal (J): opens on this book's pages, or wherever you left it"><svg viewBox="0 0 24 24"><path d="M5 3h12a2 2 0 012 2v14a2 2 0 01-2 2H5zm2 0v18M10 7h6M10 10h6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     <button class="btn" id="rListen" hidden title="Play this book's audiobook from here; the sentence being read is highlighted">🎧 Listen</button>
     <button class="btn" id="toggleNotes">Notes <span id="noteCount"></span></button>
     <button class="icon-btn" id="rHide" title="Hide the toolbar for distraction-free reading (H)"><svg viewBox="0 0 24 24"><path d="M3 5h18v3H3zM7 11h10M7 15h10M7 19h6" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button>
@@ -246,6 +282,8 @@
   <div class="reader-main">
     <aside class="toc-panel" id="tocPanel" hidden>
       <div class="toc-head"><h3 id="tocTitle">Contents</h3><button class="icon-btn sm" id="tocClose" title="Close">✕</button></div>
+      <form class="toc-find" id="tocFind" hidden><input type="search" id="tocFindQ" placeholder="Search this document" aria-label="Search this document"><button class="btn sm" type="submit">Find</button></form>
+      <div class="toc-hits" id="tocHits" hidden></div>
       <div class="toc-jump" id="tocJump" hidden><label>Go to page <input type="number" id="tocPage" min="1"></label><button class="btn sm" id="tocGo">Go</button></div>
       <div class="toc-list" id="tocList"></div>
     </aside>
@@ -273,6 +311,7 @@
     <button data-color="pink" title="Pink highlight"></button>
     <button class="note-btn" data-color="note">Highlight + note</button>
     <button class="note-btn define-btn" data-define title="What does it mean? (Wiktionary)">📖 Define</button>
+    <button class="note-btn" data-cork title="Pin these words to the corkboard">📌</button>
   </div>
   <div class="dict-card" id="dictCard" hidden></div>
 </div>
@@ -363,5 +402,8 @@
 <script src="js/journal.js"></script>
 <script src="js/discover.js"></script>
 <script src="js/reader.js"></script>
+<script src="js/corkboard.js"></script>
+<script src="js/sky.js"></script>
+<script src="js/sleep.js"></script>
 </body>
 </html>

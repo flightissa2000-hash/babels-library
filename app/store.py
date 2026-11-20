@@ -158,6 +158,8 @@ DEFAULT_SETTINGS = {
     "copies_merged": 0,
     "desktop_profile": 1,     # who's using this computer (profiles)
     "bulletin": {},           # each profile's challenge of the week, the same on every device       # files merged into the physical copies they were added beside (once)
+    "bulletin_period": {},    # how long each profile's challenge lasts: "week" (default) or "month"
+    "site_limits": {},        # each profile's website time limits on its phones: {pid: {site: minutes a day}}
     "reader_mode": {},
     "reader_width": {},
 }
@@ -513,6 +515,18 @@ def create_item(data):
 def update_item(item_id, data, clock=None):
     """clock: when the change was made (a phone's edit arriving later); now if not given. For a profile other than
     the first, its own places, finished marks and favourites are kept as its own (profile_progress)."""
+    _update_item(item_id, data, clock)
+    # a reading copy is the same book or paper: how far you are and when you last read it count for its PDF too
+    mirror = {k: data[k] for k in ("progress", "opened_at") if k in data}
+    if mirror:
+        with _lock:
+            row = _db.execute("SELECT source FROM items WHERE id=?", (item_id,)).fetchone()
+        src = (row[0] if row else "") or ""
+        if src.startswith("reading-copy:") and src[13:].isdigit():
+            _update_item(int(src[13:]), mirror, clock)
+
+
+def _update_item(item_id, data, clock=None):
     pid = profile()
     if pid and pid != OWNER and any(f in data for f in PF):
         now = time.time()
@@ -565,6 +579,24 @@ def resolve_file(p):
     if p.startswith(LIB_PREFIX):
         return path_from_db(p)
     return p if os.path.isabs(p) else os.path.join(FILES_DIR, p)
+
+
+def move_item_refs(src, dst):
+    """Another entry for the same book is folding into dst: its highlights, collections, journal rows and other
+    profiles' places go with it (dst keeps its own where both have one)."""
+    now = time.time()
+    with _lock:
+        _db.execute("UPDATE annotations SET item_id=?, updated_at=? WHERE item_id=?", (dst, now, src))
+        _db.execute("INSERT OR IGNORE INTO collection_items (collection_id, item_id, added_at) "
+                    "SELECT collection_id, ?, added_at FROM collection_items WHERE item_id=?", (dst, src))
+        try:
+            _db.execute("UPDATE media_log SET item_id=?, updated_at=? WHERE item_id=?", (dst, now, src))
+        except sqlite3.OperationalError:
+            pass
+        _db.execute("INSERT OR IGNORE INTO profile_progress (profile_id, item_id, field, value, ts) "
+                    "SELECT profile_id, ?, field, value, ts FROM profile_progress WHERE item_id=?", (dst, src))
+        _db.execute("DELETE FROM profile_progress WHERE item_id=?", (src,))
+        _db.commit()
 
 
 def delete_item(item_id, delete_file=False):

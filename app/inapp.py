@@ -96,12 +96,37 @@ class InApp:
             import threading
             threading.Thread(target=self._save_open_page, args=(d.get("days"),), daemon=True).start()
             return
+        if d.get("cmd") == "pin":
+            import threading
+            threading.Thread(target=self._pin, daemon=True).start()
+            return
         self._ui(lambda: self._run(d))
 
     def _on_ui(self, fn):
         """Run fn on the window's UI thread and hand back what it returns (from a worker thread)."""
         from System import Func, Object
         return self.desk.main.native.Invoke(Func[Object](fn))
+
+    # ---- the corkboard: the words selected on the page (or the page itself, as a link) are pinned to it
+    def _pin(self):
+        js = ("(function(){var s=(getSelection()+'').trim(),img='';try{var r=getSelection().rangeCount&&getSelection().getRangeAt(0).cloneContents();"
+              "var i=r&&r.querySelector&&r.querySelector('img');if(i)img=i.src}catch(e){}"
+              "var og=document.querySelector('meta[property=\"og:image\"],meta[name=\"twitter:image\"]');"
+              "return JSON.stringify({text:s.slice(0,8000),title:document.title,url:location.href,image:img||(og&&og.content)||''})})()")
+        try:
+            raw = _wait(self._on_ui(lambda: self.core.ExecuteScriptAsync(js)), 10)
+            d = json.loads(json.loads(raw or '""') or "{}")
+            import corkboard
+            import store
+            if not str(d.get("url") or "").startswith(("http://", "https://")) or str(d.get("url")).startswith(BASE):
+                raise ValueError("only web pages can be pinned")
+            store.use_profile(store.desktop_profile())          # (the board of whoever is using the computer)
+            card = corkboard.add({"type": "snippet" if d.get("text") else "link", "text": d.get("text") or "",
+                                  "title": d.get("title") or "", "url": d["url"], "image": d.get("image") or ""})
+            r = {"ok": True, "kind": card["type"]}
+        except Exception as e:
+            r = {"ok": False, "error": str(e)}
+        self._ui(lambda: self._tell("pinned", r))
 
     # ---- saving articles for reading offline
     def _save_open_page(self, days=None):
@@ -433,6 +458,18 @@ class InApp:
             self._we_fs = want
             import threading
             threading.Thread(target=self.desk.toggle_fullscreen, daemon=True).start()
+
+    def playing(self):
+        """Is a website here (or in the other half of a split view) playing sound? (The sleep screen waits if so.)"""
+        def ask():
+            out = False
+            for v in (self, self._other):
+                if v is not None and v.core is not None and v.shown:
+                    out = out or bool(v.core.IsDocumentPlayingAudio)
+            return out
+        if self.core is None:
+            return False
+        return bool(self._on_ui(ask))
 
     def _state(self):
         if self.core is None:

@@ -14,6 +14,13 @@ window.THEMES = {
     reader: { bg: "#282828", ink: "#ebdbb2", font: "'Nunito', sans-serif" },
     pageTint: "",
   },
+  galaxy: {
+    name: "Galaxy", inspired: "the night sky (Milky Way photo: ESO/S. Brunier)",
+    swatch: ["#070a1c", "#9b8cff", "#ffd98a", "#8fb8ff", "#7fe0c8"],
+    spines: ["#3b2f8f", "#5b3fb0", "#1f4f9a", "#2a6f8f", "#7a2f7a", "#9a6a20", "#2f3b7a"],
+    reader: { bg: "#0b0f24", ink: "#e6ebff", font: "'Nunito', sans-serif" },
+    pageTint: "",
+  },
 };
 window.themeKey = (k) => (window.THEMES[k] ? k : "wordtown");
 // set the saved theme before anything is drawn (the server's copy wins once settings load)

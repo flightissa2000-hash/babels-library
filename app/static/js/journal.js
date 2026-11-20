@@ -13,7 +13,14 @@ const Journal = (() => {
   try { BOOK = localStorage.getItem("inkwell-jbook") === "writing" ? "writing" : "reviews"; } catch (e) {}
   const W = () => BOOK === "writing";
   const inBookRows = () => J.rows.filter((r) => (r.kind === "writing") === W());
-  const STATUS = { finished: "Finished", reading: "Reading", hold: "On hold", dropped: "Dropped" };
+  const STATUS = { finished: "Finished", reading: "Reading", next: "Up next", hold: "On hold", dropped: "Dropped" };
+  // the words for each kind of thing: you read a book, watch a film or a show, play a game, listen to music
+  // (journal kinds: book/movie/show/game/other; library kinds: book/graphic/movie/tv/audio/music...)
+  const DOING = { movie: "Watching", show: "Watching", tv: "Watching", video: "Watching", game: "Playing", audio: "Listening", audiobook: "Listening", music: "Listening", other: "In progress" };
+  const stLabel = (s, kind) => (s === "reading" ? DOING[kind] || "Reading" : STATUS[s]);
+  const stEntries = (kind) => Object.keys(STATUS).map((k) => [k, stLabel(k, kind)]);
+  // the kinds you give a score out of 10
+  const SCORED = (kind) => kind === "movie" || kind === "show";
   // contents lines that fit on a page (the book is as tall as the window allows)
   const linesPerPage = () => {
     const h = J.modal ? BOOK_H : Math.max(520, Math.min(860, window.innerHeight - 175));
@@ -136,7 +143,7 @@ const Journal = (() => {
       <div class="jb-year">
         ${ORDER.filter((k) => cnt(k)).map((k) => `<div><b>${cnt(k, true)}</b><span>${KIND_NAMES[k].toLowerCase()} in ${year}</span><em>${cnt(k)} in all</em></div>`).join("")}
       </div>
-      <div class="jb-filter">${[["all", "Everything", J.rows.length], ["finished", "Finished", st("finished")], ["reading", "Reading", st("reading")], ["hold", "On hold", st("hold")], ["dropped", "Dropped", st("dropped")]]
+      <div class="jb-filter">${[["all", "Everything", J.rows.length], ["finished", "Finished", st("finished")], ["reading", "In progress", st("reading")], ["next", "Up next", st("next")], ["hold", "On hold", st("hold")], ["dropped", "Dropped", st("dropped")]]
         .map(([v, l, n]) => `<button class="jb-chip ${J.status === v ? "on" : ""}" data-jb-status="${v}">${l} <small>${n}</small></button>`).join("")}</div>
       <div class="jb-actions"><button class="jb-ink" data-jr-new>＋ Log something new</button><button class="jb-ink" data-jr-import>Import from Obsidian…</button><button class="jb-ink" data-jb-book="writing">✍ The writing notebook</button></div>`;
   }
@@ -152,8 +159,8 @@ const Journal = (() => {
     return `<button class="jb-line" data-jb-go="${r.id}">
       <span class="jb-lt">${esc(r.title)}</span>
       <span class="jb-dots"></span>
-      ${s && s !== "finished" ? `<span class="jb-st st-${s}">${STATUS[s]}</span>` : ""}
-      ${r.kind === "movie" && r.score != null ? `<span class="jb-sc">${+r.score}</span>` : ""}
+      ${s && s !== "finished" ? `<span class="jb-st st-${s}">${stLabel(s, r.kind)}</span>` : ""}
+      ${SCORED(r.kind) && r.score != null ? `<span class="jb-sc">${+r.score}</span>` : ""}
       <span class="jb-pn" title="${r.entries ? r.entries + (r.entries === 1 ? " entry" : " entries") : "no entries yet"}">${r.entries ? `✎ ${r.entries}` : ""}</span></button>`;
   }
 
@@ -164,14 +171,15 @@ const Journal = (() => {
     const src = r.cover_v ? `/api/log/${r.id}/cover?v=${r.cover_v}` : lib && lib.has_cover ? `/api/items/${lib.id}/cover?v=${lib.cover_v || 0}` : "";
     return `<div class="jb-kick">${KIND_ICON[r.kind] || "✦"} ${(KIND_ONE[r.kind] || "Entry").toUpperCase()}</div>
       <textarea class="jb-title" data-jb-field="title" rows="2" spellcheck="false">${esc(r.title)}</textarea>
-      ${r.kind === "writing" ? `<div class="jb-fields"><label><span>Begun</span><em>${esc(new Date((r.created_at || 0) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</em></label>
+      ${r.kind === "writing" ? `<button class="jb-photo ${src ? "" : "empty"}" data-jb-cover title="${src ? "Change the cover" : "Add a cover"}">${src ? `<img src="${src}" alt="">` : `<span>＋<br>add a cover</span>`}<span class="jb-tape"></span></button>
+        <div class="jb-fields"><label><span>Begun</span><em>${esc(new Date((r.created_at || 0) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</em></label>
         <label><span>Link</span><input data-jb-field="link" value="${esc(r.link || "")}" placeholder="https://…"></label></div>${figsHTML(r.id)}
-        <button class="jb-remove" data-jb-del="${r.id}">tear out this page</button>` : `<div class="jb-stamps">${Object.entries(STATUS).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jb-setstatus="${k}">${l}</button>`).join("")}</div>
+        <button class="jb-remove" data-jb-del="${r.id}">tear out this page</button>` : `<div class="jb-stamps">${stEntries(r.kind).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jb-setstatus="${k}">${l}</button>`).join("")}</div>
       <button class="jb-photo ${src ? "" : "empty"}" data-jb-cover title="${src ? "Change the cover" : "Add a cover"}">${src ? `<img src="${src}" alt="">` : `<span>＋<br>add a cover</span>`}<span class="jb-tape"></span></button>
       <div class="jb-fields">
         <label><span>Type</span><select data-jb-field="kind">${Object.keys(KIND_ONE).map((k) => `<option value="${k}" ${k === r.kind ? "selected" : ""}>${KIND_ONE[k]}</option>`).join("")}</select></label>
         <label><span>Finished</span><input type="date" data-jb-field="finished" value="${esc(r.finished || "")}"><button class="jb-mini" data-jb-today>today</button></label>
-        ${r.kind !== "movie" ? "" : `<label><span>My score</span><input type="number" min="0" max="10" step="0.5" data-jb-field="score" value="${r.score ?? ""}" placeholder="–"><em>/ 10</em></label>`}
+        ${!SCORED(r.kind) ? "" : `<label><span>My score</span><input type="number" min="0" max="10" step="0.5" data-jb-field="score" value="${r.score ?? ""}" placeholder="–"><em>/ 10</em></label>`}
         <label><span>Link</span><input data-jb-field="link" value="${esc(r.link || "")}" placeholder="https://…">${r.link ? `<button class="jb-mini" data-preview="${esc(r.link)}">preview</button>` : ""}</label>
       </div>
       ${r.kind === "other" ? figsHTML(r.id) : ""}
@@ -216,9 +224,11 @@ const Journal = (() => {
     const done = rows.filter((r) => statusOfRow(r) !== "dropped");
     const dropped = rows.filter((r) => statusOfRow(r) === "dropped");
     const by = (k) => done.filter((r) => r.kind === k);
-    const films = by("movie").filter((r) => r.score != null);
-    const avg = films.length ? (films.reduce((a, r) => a + Number(r.score), 0) / films.length).toFixed(1) : null;
-    const best = [...films].sort((a, b) => b.score - a.score).slice(0, 3);
+    const scoredOf = (k) => by(k).filter((r) => r.score != null);
+    const avgOf = (list) => (list.length ? (list.reduce((a, r) => a + Number(r.score), 0) / list.length).toFixed(1) : null);
+    const films = scoredOf("movie"), shows = scoredOf("show");
+    const avg = avgOf(films), avgShows = avgOf(shows);
+    const best = [...films, ...shows].sort((a, b) => b.score - a.score).slice(0, 3);
     const perMonth = MONTHS.map((_, i) => rows.filter((r) => Number(r.finished.slice(5, 7)) === i + 1).length);
     const busiest = Math.max(...perMonth);
     const reviews = rows.reduce((a, r) => a + (r.entries || 0), 0);
@@ -234,7 +244,7 @@ const Journal = (() => {
       <div class="jb-year jb-ybig">${ORDER.filter((k) => by(k).length).map((k) => `<div><b>${by(k).length}</b><span>${KIND_ICON[k]} ${KIND_NAMES[k].toLowerCase()}</span></div>`).join("")}</div>
       <p class="jb-ysum">You finished <b>${done.length}</b> ${done.length === 1 ? "thing" : "things"} in ${y}${dropped.length ? ` and set <b>${dropped.length}</b> aside` : ""}, and wrote <b>${reviews}</b> journal ${reviews === 1 ? "entry" : "entries"} about them.</p>
       <div class="jb-months">${perMonth.map((n, m) => `<div title="${MONTHS[m]}: ${n}"><i style="height:${busiest ? Math.round(100 * n / busiest) : 0}%"></i><span>${MONTHS[m][0]}</span></div>`).join("")}</div>
-      ${avg ? `<div class="jb-ysub">Films: average score <b>${avg}</b> / 10</div>
+      ${avg || avgShows ? `<div class="jb-ysub">${[avg ? `Films: average score <b>${avg}</b> / 10` : "", avgShows ? `Shows: average score <b>${avgShows}</b> / 10` : ""].filter(Boolean).join(" · ")}</div>
         <div class="jb-ybest">${best.map((r, n) => `<button class="jb-line" data-jb-go="${r.id}"><span class="jb-lt">${["🥇", "🥈", "🥉"][n]} ${esc(r.title)}</span><span class="jb-dots"></span><span class="jb-sc">${+r.score}</span></button>`).join("")}</div>` : ""}`
       : `<p class="jb-none">Nothing finished in ${y} yet.</p>`}`;
   }
@@ -249,7 +259,7 @@ const Journal = (() => {
       out.push(`<div class="jb-sec">${name}</div>` + list.map((r) => {
         const s = statusOfRow(r);
         return `<button class="jb-line" data-jb-go="${r.id}"><span class="jb-lt">${KIND_ICON[r.kind] || "✦"} ${esc(r.title)}</span><span class="jb-dots"></span>
-          ${s === "dropped" ? `<span class="jb-st st-dropped">Dropped</span>` : ""}${r.kind === "movie" && r.score != null ? `<span class="jb-sc">${+r.score}</span>` : ""}<span class="jb-pn">${Number(r.finished.slice(8, 10))}</span></button>`;
+          ${s === "dropped" ? `<span class="jb-st st-dropped">Dropped</span>` : ""}${SCORED(r.kind) && r.score != null ? `<span class="jb-sc">${+r.score}</span>` : ""}<span class="jb-pn">${Number(r.finished.slice(8, 10))}</span></button>`;
       }).join(""));
     });
     return `<h2 class="jb-h2">${y}, month by month</h2>${out.join("")}`;
@@ -549,24 +559,28 @@ const Journal = (() => {
     await load();
     const reading = window.readerItem && window.readerItem();
     const it = reading || (S.openId && S.items.find((x) => x.id === S.openId));
+    // opened again over the same thing this session: back to the very page you left it on
+    const key = it ? it.id : 0, back = J.resume && J.resume.key === key ? J.resume : null;
+    if (back) return open(null, back, key);
     const row = it && J.byItem.get(it.id);
-    if (!row && reading) return openForItem(reading, { write: true });     // pulled out over a book: its pages, ready to write
-    return open(row ? row.id : null);
+    return open(row ? row.id : null, null, key);      // its pages if it has an entry, otherwise the journal as it opens
   }
 
-  async function open(logId) {
+  async function open(logId, at = null, key = null) {
     await load();
+    J.resumeKey = key;        // (only the Journal button / J remembers its place; opening on a particular entry doesn't)
     J.status = "all"; J.q = "";
     J.modal = true;
     const lr = logId && J.rows.find((r) => r.id === logId);
     if (lr) BOOK = lr.kind === "writing" ? "writing" : "reviews";        // (in whichever notebook it's in)
+    if (at) BOOK = at.book;
     buildPages();
     const m = floatWin();
     const already = m.classList.contains("open");
     J.modal = true;
     $("#jbModalBook").innerHTML = bookHTML();
     const p = J.pageOf.get(logId);
-    J.spread = p != null ? Math.floor(p / 2) : 0;
+    J.spread = at ? Math.min(at.spread, Math.max(0, Math.ceil(J.pages.length / 2) - 1)) : p != null ? Math.floor(p / 2) : 0;
     paintSpread(0);
     // the book's cover swings open where it lies (it used to be carried in from below the screen, which only
     // suited the old full-window pop-up)
@@ -592,6 +606,8 @@ const Journal = (() => {
   function closeModal() {
     const m = $("#jbModal");
     if (!m || !m.classList.contains("open")) return false;
+    // remember where it was left, so opening it again over the same book (this session) comes back here
+    if (J.resumeKey != null) J.resume = { key: J.resumeKey, book: BOOK, spread: J.spread };
     m.classList.add("closing");
     setTimeout(() => { m.classList.remove("open", "closing"); dispatchEvent(new Event("journal-moved")); }, 320);
    J.modal = false;
@@ -652,8 +668,8 @@ const Journal = (() => {
     const last = n ? log.journal[n - 1] : null;
     const s = log ? statusOfRow(log) : (it.progress > 0.02 && it.progress < 0.97 ? "reading" : "");
     el.innerHTML = `<h4>Review journal</h4>
-      <div class="jr-status">${Object.entries(STATUS).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jr-itemstatus="${k}" data-id="${it.id}">${l}</button>`).join("")}
-        ${log && log.finished ? `<span class="hint">finished ${esc(fmtDay(log.finished))}${log.kind === "movie" && log.score != null ? ` · ${+log.score}/10` : ""}</span>` : ""}</div>
+      <div class="jr-status">${stEntries(it.kind).map(([k, l]) => `<button class="jb-stamp st-${k} ${s === k ? "on" : ""}" data-jr-itemstatus="${k}" data-id="${it.id}">${l}</button>`).join("")}
+        ${log && log.finished ? `<span class="hint">finished ${esc(fmtDay(log.finished))}${SCORED(log.kind) && log.score != null ? ` · ${+log.score}/10` : ""}</span>` : ""}</div>
       ${last ? `<blockquote class="jr-snip"><time>${esc(fmtStamp(last.created_at).day)}</time>${esc(last.body.slice(0, 260))}${last.body.length > 260 ? "…" : ""}</blockquote>` : `<p class="hint">No review yet.</p>`}
       <div class="row wrap"><button class="btn primary sm" data-jr-item="${it.id}">${n ? `Open journal (${n} ${n === 1 ? "entry" : "entries"})` : "Write a review"}</button></div>`;
   }
@@ -669,8 +685,8 @@ const Journal = (() => {
     const entries = (log && log.journal) || [];
     const s = log ? statusOfRow(log) : statusOf(it);
     const open = el.dataset.expanded === "1";   // starts folded; click the header to read it
-    const stamps = `<span class="sj-stamps">${Object.entries(STATUS).map(([k, l]) => `<button class="jb-stamp sm st-${k} ${s === k ? "on" : ""}" data-jr-itemstatus="${k}" data-id="${it.id}">${l}</button>`).join("")}</span>`;
-    const meta = entries.length ? `${entries.length} ${entries.length === 1 ? "entry" : "entries"}${log.finished ? ` · finished ${esc(fmtDay(log.finished))}` : ""}${log.kind === "movie" && log.score != null ? ` · ${+log.score}/10` : ""}` : "no entries yet";
+    const stamps = `<span class="sj-stamps">${stEntries(it.kind).map(([k, l]) => `<button class="jb-stamp sm st-${k} ${s === k ? "on" : ""}" data-jr-itemstatus="${k}" data-id="${it.id}">${l}</button>`).join("")}</span>`;
+    const meta = entries.length ? `${entries.length} ${entries.length === 1 ? "entry" : "entries"}${log.finished ? ` · finished ${esc(fmtDay(log.finished))}` : ""}${SCORED(log.kind) && log.score != null ? ` · ${+log.score}/10` : ""}` : "no entries yet";
     el.classList.toggle("open", open);
     el.innerHTML = `<h4><button class="sj-toggle" data-sj-toggle aria-expanded="${open}"><span class="sj-chev">▸</span>✎ Review journal <small>${meta}</small></button><span class="spacer"></span>${stamps}${log ? `<button class="btn sm" data-jb-open="${log.id}">Open the journal</button>` : ""}</h4>
       ${open ? `${entries.length ? `<div class="sj-list">${entries.map((e) => `<article class="jb-entry"><header><time>${esc(fmtStamp(e.created_at).day)}</time></header><div class="jb-body">${md(e.body)}</div></article>`).join(`<div class="jb-fleuron">❦</div>`)}</div>` : ""}${writeBox(it, true)}` : ""}`;
@@ -782,7 +798,7 @@ const Journal = (() => {
           <p class="hint">Filed under Other. Add dated entries to it like any journal page; it has no reading status.</p>
         </div>
         <div class="row jb-pickfoot"><span class="jb-picked" data-picked>Pick something above</span><span class="spacer"></span>
-          <label>Status <select data-ps><option value="finished">Finished today</option><option value="reading">Reading / watching</option><option value="hold">On hold</option><option value="dropped">Dropped</option></select></label>
+          <label>Status <select data-ps><option value="finished">Finished today</option><option value="reading">Reading / watching</option><option value="next">Up next</option><option value="hold">On hold</option><option value="dropped">Dropped</option></select></label>
           <button class="btn" type="button" data-x>Cancel</button><button class="btn primary" type="button" data-ok>Add to the journal</button></div>`;
       document.body.append(d);
       const cats = () => {
@@ -798,7 +814,7 @@ const Journal = (() => {
           return `<button type="button" class="jb-pick ${st.pick && st.pick.item_id === i.id ? "on" : ""}" data-jbpick="${i.id}">
             ${i.has_cover ? `<img alt="" loading="lazy" src="/api/items/${i.id}/cover?v=${i.cover_v || 0}">` : `<i class="jb-pcov" style="--c:${typeof colorFor === "function" ? colorFor(i) : "#ccc"}">${esc((i.title || "?")[0])}</i>`}
             <span><b>${esc(i.title || "Untitled")}</b><small>${esc([by, i.series && st.kind !== "tv" ? i.series + (i.series_index ? " #" + +i.series_index : "") : "", i.year].filter(Boolean).join(" · "))}</small></span>
-            ${inJ ? `<em class="jb-st st-${statusOfRow(inJ) || "finished"}">${STATUS[statusOfRow(inJ)] || "In journal"}</em>` : ""}</button>`;
+            ${inJ ? `<em class="jb-st st-${statusOfRow(inJ) || "finished"}">${stLabel(statusOfRow(inJ), i.kind) || "In journal"}</em>` : ""}</button>`;
         }).join("") : `<p class="hint" style="padding:20px">Nothing here.</p>`;
       };
       const setPicked = () => { d.querySelector("[data-picked]").innerHTML = st.pick ? `Picked: <b>${esc(st.pick.title)}</b>` : "Pick something above"; };
@@ -926,7 +942,7 @@ const Journal = (() => {
       if (!item) return;
       const st = ist.dataset.jrItemstatus;
       await api.send("POST", `/api/items/${item.id}/log`, st === "finished" ? { status: st, finished: today() } : { status: st });
-      await load(); toast(`Marked ${STATUS[st].toLowerCase()}`);
+      await load(); toast(`Marked ${stLabel(st, item.kind).toLowerCase()}`);
       if ($("#dJournal")) paintItemSection(item);
       if ($("#stageJr") && Number($("#stageJr").dataset.id) === item.id) paintStage(item);
       if (typeof renderLib === "function" && S.area !== "journal") { const y = scrollY; renderLib(); scrollTo(0, y); }
@@ -998,7 +1014,7 @@ const Journal = (() => {
       await api.send("PATCH", `/api/log/${r.id}`, body);
       Object.assign(r, body);
       J.byItem = new Map(J.rows.filter((x) => x.item_id).map((x) => [x.item_id, x]));
-      toast(`Marked ${STATUS[st].toLowerCase()}`);
+      toast(`Marked ${stLabel(st, r.kind).toLowerCase()}`);
       const pg = ss.closest(".jb-pg"); pg.outerHTML = pageHTML(J.pages[Number(pg.dataset.page)], Number(pg.dataset.page));
       return;
     }

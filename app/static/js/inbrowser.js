@@ -26,6 +26,7 @@ const Browser = (() => {
         <button class="ib-btn ib-star" data-ib="star" data-label="Bookmark" style="--i:9" title="Bookmark this page (it shows on the start page)">☆</button>
         <button class="ib-btn ib-splitbtn" data-ib="split" data-label="Split view" style="--i:4" title="Split view: another page side by side; press again to go back to one (keeps the half you're using) (Ctrl+Shift+S)">⧉</button>
         <button class="ib-btn ib-save" data-ib="savepage" data-label="Save it" style="--i:5" title="Save this article to your library, to read offline (its web address is kept)">⤓</button>
+        <button class="ib-btn" data-ib="pin" data-label="Corkboard" style="--i:10" title="Pin the text you've selected to the corkboard (with nothing selected: this page, as a link)">📌</button>
         <button class="ib-btn ib-key" data-ib="key" data-label="Password" style="--i:6" title="Fill in a saved password for this site">🔑</button>
         <button class="ib-btn" data-ib="history" data-label="History" style="--i:7" title="History and saved passwords">☰</button>
         <button class="ib-btn ib-close" data-ib="close" data-label="Close tab" style="--i:8" title="Close this page and go back to the start page (Esc or the library's own buttons leave the browser)">✕</button></div>
@@ -60,13 +61,13 @@ const Browser = (() => {
     return m;
   }
   // (the Orb's open fan too: while you pick a control the page under it stands still as a picture, so the fan shows whole)
-  const covered = () => !!document.querySelector("dialog[open], .dv.open, #nwModal.open, .jb-snip, #jbPreview.open, .drawer.open, .jb-pv.open, .dvi.open, #inBrowser[data-blayout=orb] .ib-bar.fan") || ($("#reader") && !$("#reader").hidden);
+  const covered = () => !!document.querySelector("#sleepScreen.on, dialog[open], .dv.open, #nwModal.open, .jb-snip, #jbPreview.open, .drawer.open, .jb-pv.open, .dvi.open, #inBrowser[data-blayout=orb] .ib-bar.fan") || ($("#reader") && !$("#reader").hidden);
   // the floating journal (and its bookmark) aren't covered by the website: the site view is cut around them and keeps going
   // (so is the Orb layout's orb, its fan of controls and its address bubble, which float over the website)
   // (a piece still fading in, like the tabs and the move handle while the cover swings open, isn't cut out yet: the
   // hole would show an empty patch of the app; the cover itself is, so it isn't hidden behind the website as it swings)
   const seen = (el) => { let o = 1; for (let e = el; e && e !== document.body; e = e.parentElement) o *= Number(getComputedStyle(e).opacity); return o > 0.1; };
-  const cuts = () => [...document.querySelectorAll("#jbModal.open .jb-book, #jbModal.open .jb-tab, #jbModal.open .jb-tuck, #jbModal.open .jb-grip, #jbModal.open .jb-grab, #jbModal.open .jb-polbig, #jbModal.open .jb-lid, #jbPull:not(.out)"
+  const cuts = () => [...document.querySelectorAll("#jbModal.open .jb-book, #jbModal.open .jb-cover, #jbModal.open .jb-tab, #jbModal.open .jb-tuck, #jbModal.open .jb-grip, #jbModal.open .jb-grab, #jbModal.open .jb-polbig, #jbModal.open .jb-lid, #jbPull:not(.out)"
       + ", #inBrowser[data-blayout=orb] .ib-orb")]
     .filter((el) => getComputedStyle(el).visibility !== "hidden" && getComputedStyle(el).display !== "none" && seen(el))
     .map((el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
@@ -238,6 +239,10 @@ const Browser = (() => {
       if (!web || !cur().url) return toast("Open an article first");
       return strip(`<span>Keep <b>${esc(cur().title || cur().url)}</b></span><button class="btn sm" data-ib="savekeep" data-days="">For good</button><button class="btn sm" data-ib="savekeep" data-days="30">For 30 days</button><button class="btn sm" data-ib="nostrip">✕</button>`);
     }
+    if (k === "pin") {          // the selected words (or the page itself) go on the corkboard
+      if (!web || !cur().url) return toast("Open a page first");
+      return send({ cmd: "pin", pane: p });
+    }
     if (k === "savekeep") {
       const sb = $("#inBrowser [data-ib=savepage]"), days = Number(b.dataset.days) || null;
       if (sb) { sb.disabled = true; sb.classList.add("busy"); }
@@ -301,6 +306,7 @@ const Browser = (() => {
   // other panels open over the browser, which waits behind them
   document.addEventListener("click", (e) => { if (B.on && e.target.closest("#brand, #areaSeg, #kindSeg, #viewSeg, #search, #groupBy")) close(); }, true);
 
-  return { open, close, go, home, state, focused, focusPane, split, setLayout, offerSave, saved, frozen, toggle: () => (B.on ? close() : open()), get on() { return B.on; }, get splitOn() { return B.split; } };
+  const pinned = (d) => window.Cork && Cork.pinned(d);
+  return { open, close, go, home, state, focused, focusPane, split, setLayout, offerSave, saved, frozen, pinned, toggle: () => (B.on ? close() : open()), get on() { return B.on; }, get splitOn() { return B.split; } };
 })();
 window.Browser = Browser;      // the app (inapp.py) and the start page in the iframe reach it as window.Browser

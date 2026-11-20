@@ -33,6 +33,10 @@ library in `F:\Library`. File locations are saved relative to the drive, so the 
 - **Linux:** run `bash start-inkwell.sh` once (it adds Babel's Library to your applications menu). For the native window install
   GTK WebKit, e.g. `sudo apt install python3-gi gir1.2-webkit2-4.1`; without it Babel's Library opens in a Chrome/Chromium/Edge
   app window. Folders picked on one system (inbox, Zotero, Calibre) fall back to this computer's defaults on the other.
+- **Reading copies:** a PDF's item panel (or View in its reader) has Reading copy: an EPUB for small screens, with columns
+  undone, figures and tables at the end and linked from the text, and citations linked to the references. Equations follow
+  View → Equation size and open full size when tapped. Scans and PDFs with unreadable text become trimmed page pictures.
+  The copy is its own library item beside the PDF; the PDF is never changed. Made by `app/readingcopy.py` (PyMuPDF, in vendor_py).
 - **Moving everything from Settings:** Settings → Move Babel's Library → Move everything… copies the program, data and
   library into the folder you choose (as `Inkwell` and `Library`), checks them, then restarts from there. The old copy is
   left in place and starting it opens the new one; delete it yourself when you're happy.

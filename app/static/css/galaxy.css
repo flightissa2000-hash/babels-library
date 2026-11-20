@@ -1,0 +1,124 @@
+/* ---------------------------------------------------------------
+   GALAXY: the library among the stars
+   deep navy and violet, starlight gold, the real Milky Way behind every page
+   (Milky Way: ESO/S. Brunier, CC BY 4.0. The component rules come from galaxy.gen.css.)
+---------------------------------------------------------------- */
+[data-theme=galaxy]{
+  --bg:#070a1c;--surface:#121836;--ink:#e6ebff;--ink-soft:#9aa6d8;--line:#2a3366;
+  --accent:#9b8cff;--accent-ink:#0a0c22;--accent2:#ffd98a;--ok:#7fe0c8;--danger:#ff6ba8;--hover:rgba(180,195,255,.08);
+  --font-display:"Cormorant Garamond",Georgia,serif;--font-body:"Nunito",sans-serif;--font-ui:"Nunito",sans-serif;--display-weight:700;--display-track:.02em;
+  /* the real Milky Way, darkened, with a few near stars twinkling in front of it */
+  --texture:radial-gradient(1.2px 1.2px at 12% 18%,rgba(255,255,255,.9),transparent),radial-gradient(1px 1px at 68% 32%,rgba(200,215,255,.8),transparent),
+    radial-gradient(1.4px 1.4px at 84% 74%,rgba(255,230,190,.85),transparent),radial-gradient(1px 1px at 32% 82%,rgba(255,255,255,.7),transparent),
+    radial-gradient(1px 1px at 47% 12%,rgba(255,255,255,.6),transparent),
+    radial-gradient(ellipse at 18% 8%,rgba(130,90,255,.22),transparent 45%),radial-gradient(ellipse at 92% 96%,rgba(60,120,255,.18),transparent 50%),
+    linear-gradient(rgba(5,7,22,.62),rgba(5,7,22,.82)),url("../sky/milkyway.jpg");
+  --texture-size:420px 420px,380px 380px,460px 460px,300px 300px,520px 520px,auto,auto,auto,cover;
+  --texture-pos:0 0,0 0,0 0,0 0,0 0,0 0,0 0,0 0,center;
+  --radius-sm:10px;--radius-lg:18px;--radius-cover:6px;
+  --bar-bg:rgba(9,12,32,.78);--bar-ink:#e6ebff;--bar-border:1px solid rgba(150,170,255,.18);--bar-shadow:0 8px 30px rgba(0,0,0,.45);
+  --field-bg:rgba(6,8,22,.7);--field-border:1px solid #3a4582;
+  --btn-bg:rgba(27,34,71,.85);--btn-ink:#e6ebff;--btn-border:1px solid #3a4582;--btn-shadow:0 0 0 rgba(0,0,0,0);
+  --tag-bg:rgba(155,140,255,.16);--tag-ink:#d9d2ff;--tag-border:1px solid rgba(155,140,255,.35);--radius-tag:999px;
+  --shelf-back:rgba(18,24,54,.6);--plank:8px solid #2a3366;--plank-c:#2a3366;--plank-h:8px;--plank-shadow:0 0 18px rgba(155,140,255,.25);
+  --spine-radius:4px 4px 2px 2px;--spine-shadow:inset 0 0 0 1px rgba(255,255,255,.12),inset -4px 0 8px rgba(0,0,0,.35);--spine-pattern:none;
+  --cover-shadow:0 0 0 1px rgba(150,170,255,.18),0 10px 28px rgba(0,0,0,.6),0 0 22px rgba(120,140,255,.12);
+  --cover-pattern:radial-gradient(circle at 30% 20%,rgba(255,255,255,.18),transparent 40%);
+  --town-ground:#0a0e26;--district-bg:rgba(18,24,54,.7);--district-border:1px solid #2a3366;
+  --sign-bg:#1b2247;--sign-ink:#ffd98a;--sign-shadow:0 0 14px rgba(255,217,138,.18);
+  --window:#8fb8ff;--door:#060816;--label-bg:#0b0f24;--label-border:1px solid #3a4582;
+  --stage-bg:rgba(18,24,54,.85);--stage-ink:#e6ebff;--hrow-bg:rgba(18,24,54,.85);--hrow-sel:#9b8cff;--hrow-sel-ink:#0a0c22;
+  --burst:repeating-conic-gradient(from 0deg,rgba(155,140,255,.28) 0 6deg,transparent 6deg 18deg);
+  --toast-bg:#ffd98a;--toast-ink:#0a0c22;
+  --dlg-border:1px solid #3a4582;--drawer-border:1px solid #3a4582;
+  --hl-yellow:#8a6d1e;--hl-green:#1e6b5a;--hl-blue:#24499a;--hl-pink:#7a2a63;
+  --reader-bg:#060816;
+  /* the brand mark: a ringed planet */
+  --brand-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7.5'/%3E%3Cpath d='M3 21c-2-3 4-8 13-11s16-3 15 1-6 7-14 10S5 24 3 21zm2-.6c1 1.4 6 .7 12-1.6s10.6-5.4 10-7.2c-.4-1.2-3-1.4-6.5-.8 1.4 1.1 1 3-1 4.5C15 17.5 9 19.7 5.6 19.5z'/%3E%3C/svg%3E");
+  color-scheme:dark;
+}
+[data-theme=galaxy] body::before{background-attachment:fixed}
+/* headings glow faintly, like starlight */
+[data-theme=galaxy] .group-head h2,[data-theme=galaxy] .lv-h,[data-theme=galaxy] .brand-name{text-shadow:0 0 18px rgba(155,140,255,.35)}
+[data-theme=galaxy] .group-head h2{color:#ffd98a;letter-spacing:.03em}
+[data-theme=galaxy] .brand-mark{background:linear-gradient(135deg,#ffd98a,#9b8cff)}
+/* glassy panels over the sky */
+[data-theme=galaxy] .topbar,[data-theme=galaxy] .collbar{backdrop-filter:blur(10px) saturate(1.2)}
+[data-theme=galaxy] .drawer,[data-theme=galaxy] dialog,[data-theme=galaxy] .lay-menu{background:linear-gradient(160deg,rgba(24,30,66,.96),rgba(10,13,34,.97));box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(120,140,255,.10)}
+[data-theme=galaxy] .btn.primary{background:linear-gradient(135deg,#9b8cff,#6f86ff);color:#fff;border-color:transparent;box-shadow:0 0 18px rgba(155,140,255,.35)}
+[data-theme=galaxy] .btn:hover:not(:disabled){box-shadow:0 0 14px rgba(155,140,255,.3)}
+[data-theme=galaxy] .lv-p i,[data-theme=galaxy] .cov .bar i{background:linear-gradient(90deg,#9b8cff,#ffd98a)}
+/* the layouts, in space */
+[data-theme=galaxy] .lv-tl-line{background:linear-gradient(#9b8cff,rgba(255,217,138,.4),transparent);box-shadow:0 0 12px rgba(155,140,255,.5)}
+[data-theme=galaxy] .lv-tl-ev::before{background:#ffd98a;border-color:#fff;box-shadow:0 0 12px #ffd98a}
+[data-theme=galaxy] .lv-table tbody tr[data-open]:hover{background:rgba(155,140,255,.12)}
+[data-theme=galaxy] .lv-cork{background:#1a1440 radial-gradient(rgba(255,255,255,.15) 1px,transparent 1.5px) 0 0/9px 9px;box-shadow:inset 0 0 0 10px #2a2160}
+[data-theme=galaxy] .sky{box-shadow:0 10px 50px rgba(0,0,0,.6),0 0 0 1px rgba(150,170,255,.18),0 0 60px rgba(120,140,255,.10)}
+/* the reader's paper stays readable: a night page, not black */
+[data-theme=galaxy] .reader{--reader-bg:#060816}
+@media (prefers-reduced-motion:no-preference){
+  [data-theme=galaxy] .brand-mark{animation:glxSpin 40s linear infinite}
+  @keyframes glxSpin{to{filter:hue-rotate(360deg)}}
+}
+
+/* ---------------------------------------------------------------
+   Galaxy: each part of the library has its own real photograph of space, full-window behind it. The page opens on
+   a clear window onto the photo (with its name and credit), and everything else floats over it on glass.
+   Photos: NASA, ESA, CSA, STScI (Webb) and NASA, ESA (Hubble), via ESA/Webb and ESA/Hubble, CC BY 4.0.
+---------------------------------------------------------------- */
+[data-theme=galaxy] body{--glx-photo:url("/sky/photos/tarantula.jpg");--glx-pos:center 40%;
+  --glx-cap:"The Tarantula Nebula · 161,000 light-years away, in the Large Magellanic Cloud · NASA, ESA, CSA, STScI, Webb ERO Team"}
+[data-theme=galaxy] body[data-g-area=home]{--glx-photo:url("/sky/photos/cosmic-cliffs.jpg");--glx-pos:center 78%;
+  --glx-cap:"The Cosmic Cliffs · the edge of a star-forming cavity in the Carina Nebula · NASA, ESA, CSA, STScI (Webb)"}
+[data-theme=galaxy] body[data-g-area=books]{--glx-photo:url("/sky/photos/pillars.jpg");--glx-pos:center 42%;
+  --glx-cap:"The Pillars of Creation · in the Eagle Nebula, 6,500 light-years away · NASA, ESA, CSA, STScI; J. DePasquale, A. Koekemoer, A. Pagan (STScI)"}
+[data-theme=galaxy] body[data-g-area=articles]{--glx-photo:url("/sky/photos/stephans-quintet.jpg");--glx-pos:62% 38%;
+  --glx-cap:"Stephan’s Quintet · five galaxies, four of them locked in a cosmic dance · NASA, ESA, CSA, STScI (Webb)"}
+[data-theme=galaxy] body[data-g-area=music]{--glx-photo:url("/sky/photos/whirlpool.jpg");--glx-pos:30% 50%;
+  --glx-cap:"The Whirlpool Galaxy (M51) and its companion · 31 million light-years away · NASA, ESA, S. Beckwith (STScI), Hubble Heritage Team"}
+[data-theme=galaxy] body[data-g-area=video]{--glx-photo:url("/sky/photos/orion.jpg");--glx-pos:center 35%;
+  --glx-cap:"The Orion Nebula · the nearest great star nursery, 1,350 light-years away · NASA, ESA, M. Robberto (STScI/ESA), Hubble"}
+/* the photo, clear at the top of the window and dimming lower down, where the reading is */
+[data-theme=galaxy] body::before{
+  background-image:linear-gradient(180deg,rgba(4,6,18,.05) 0,rgba(4,6,18,.30) 34vh,rgba(4,6,18,.72) 70vh,rgba(4,6,18,.86) 100%),var(--glx-photo);
+  background-size:auto,cover;background-position:0 0,var(--glx-pos);background-repeat:no-repeat;background-attachment:fixed;
+  transition:background-image .6s ease}
+/* the window onto the photo, with its name: the library starts below it */
+[data-theme=galaxy] #library::before{content:var(--glx-cap);display:flex;align-items:flex-end;height:30vh;min-height:160px;margin:-14px -22px 18px;padding:0 26px 14px;
+  font:italic .82rem/1.35 "Cormorant Garamond",Georgia,serif;letter-spacing:.02em;color:rgba(230,236,255,.82);text-shadow:0 1px 6px #000,0 0 2px #000;
+  background:linear-gradient(180deg,transparent 60%,rgba(4,6,18,.35));pointer-events:none}
+[data-theme=galaxy] body[data-g-area=home] #library::before{height:22vh;min-height:120px}
+[data-theme=galaxy] #library[data-layout=stars]::before{display:none}
+/* everything floats on glass, so the photo shows through between the books */
+[data-theme=galaxy] .lv-sec,[data-theme=galaxy] .lv-list,[data-theme=galaxy] .lv-index .lv-cols,[data-theme=galaxy] .lv-table table{border-radius:16px}
+[data-theme=galaxy] .lv-list .lv-sec,[data-theme=galaxy] .lv-mosaic .lv-sec,[data-theme=galaxy] .lv-index .lv-cols,[data-theme=galaxy] .lv-table{
+  padding:14px 16px;background:rgba(8,11,30,.52);border:1px solid rgba(150,170,255,.16);border-radius:16px;backdrop-filter:blur(14px) saturate(1.2);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+[data-theme=galaxy] .lv-table thead th{background:rgba(8,11,30,.85)}
+[data-theme=galaxy] .lv-az{background:rgba(8,11,30,.7);backdrop-filter:blur(10px);border-radius:10px;padding:6px}
+[data-theme=galaxy] .lv-col{background:rgba(8,11,30,.55);backdrop-filter:blur(14px);border-color:rgba(150,170,255,.18)}
+[data-theme=galaxy] .lv-card{background:rgba(18,24,54,.7);border-color:rgba(150,170,255,.14)}
+[data-theme=galaxy] .lv-tl-card{background:rgba(10,13,34,.62);backdrop-filter:blur(12px);border-color:rgba(150,170,255,.2)}
+[data-theme=galaxy] .lv-cork{background:rgba(26,20,64,.45) radial-gradient(rgba(255,255,255,.14) 1px,transparent 1.5px) 0 0/9px 9px;backdrop-filter:blur(6px);box-shadow:inset 0 0 0 8px rgba(42,33,96,.7)}
+[data-theme=galaxy] .group-head,[data-theme=galaxy] .lv-h{text-shadow:0 1px 8px rgba(0,0,0,.8),0 0 18px rgba(155,140,255,.35)}
+[data-theme=galaxy] .heist-row,[data-theme=galaxy] .stage{background:rgba(10,13,34,.6);backdrop-filter:blur(12px)}
+/* the Bulletin: its front page is glass over the Cosmic Cliffs */
+[data-theme=galaxy] .bt.btx-mag{background:rgba(6,8,22,.5);backdrop-filter:blur(16px) saturate(1.2);border-color:rgba(150,170,255,.2)}
+[data-theme=galaxy] .btm-hot,[data-theme=galaxy] .btm-wire,[data-theme=galaxy] .btm-labs,[data-theme=galaxy] .btm-qotd,[data-theme=galaxy] .btm-tfa{background:rgba(8,11,30,.55)}
+@media (prefers-reduced-motion:reduce){[data-theme=galaxy] body::before{transition:none}}
+
+/* the Bulletin over its photo: no dark backdrop of its own, so the Cosmic Cliffs show through the whole front page;
+   the words carry a shadow instead, and each section below is only a faint veil */
+[data-theme=galaxy] .bt.btx-mag{background:transparent;backdrop-filter:none;border-color:rgba(150,170,255,.16);text-shadow:0 1px 3px rgba(0,0,0,.75),0 0 14px rgba(0,0,0,.45)}
+[data-theme=galaxy] .btx-mag .btm-bg{display:none}
+[data-theme=galaxy] .btx-mag .btm-cover::before{background:radial-gradient(ellipse at 60% 45%,rgba(4,6,18,.38),rgba(4,6,18,.08) 70%)}
+[data-theme=galaxy] .btx-mag .btm-cover::after{display:none}
+[data-theme=galaxy] .btx-mag .btm-sec,[data-theme=galaxy] .btx-mag .btm-hot,[data-theme=galaxy] .btx-mag .btm-wire,[data-theme=galaxy] .btx-mag .btm-labs,
+[data-theme=galaxy] .btx-mag .btm-lab,[data-theme=galaxy] .btx-mag .btm-qotd,[data-theme=galaxy] .btx-mag .btm-tfa{background:rgba(4,6,18,.22)}
+[data-theme=galaxy] .btx-mag .btm-sec{border-top:1px solid rgba(150,170,255,.12)}
+[data-theme=galaxy] .btx-mag .btm-wire-row,[data-theme=galaxy] .btx-mag .btm-fig,[data-theme=galaxy] .btx-mag .btm-tfa-page{background:rgba(6,8,22,.45);backdrop-filter:blur(6px)}
+[data-theme=galaxy] .btx-mag .cover,[data-theme=galaxy] .btx-mag img{text-shadow:none}
+/* the window above the Bulletin isn't needed: the Bulletin itself is the window */
+[data-theme=galaxy] body[data-g-area=home] #library::before{height:auto;min-height:0;margin:-6px -22px 6px;padding:0 26px 4px;background:none}
+[data-theme=galaxy] .btx-mag header h3,[data-theme=galaxy] .btx-mag .btm-title b,[data-theme=galaxy] .btx-mag .btm-num{text-shadow:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.85))}
+/* no empty window above the library: the photo already shows through everything; just its name and credit, one slim line */
+[data-theme=galaxy] #library::before{height:auto;min-height:0;margin:-6px 0 10px;padding:0 4px;background:none;font-size:.78rem;opacity:.85}

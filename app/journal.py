@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS journal (
 CREATE INDEX IF NOT EXISTS journal_log ON journal(log_id);
 """
 KINDS = ("book", "movie", "show", "game", "other", "writing")      # (writing: the writing notebook's pages)
-STATUSES = ("finished", "reading", "hold", "dropped", "")
+STATUSES = ("finished", "reading", "next", "hold", "dropped", "")
 with store._lock:
     store._db.executescript(SCHEMA)
     if "status" not in {r[1] for r in store._db.execute("PRAGMA table_info(media_log)")}:

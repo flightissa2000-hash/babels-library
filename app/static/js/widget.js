@@ -258,7 +258,8 @@ async function refresh() {
     const text = await (await fetch("/api/items")).text();
     const changed = text !== window._lastItems;
     window._lastItems = text;
-    items = JSON.parse(text);
+    // reading copies are an internal thing: the book or paper itself is listed (its progress includes the copy's)
+    items = JSON.parse(text).filter((i) => !String(i.source || "").startsWith("reading-copy:"));
     const s = await (await fetch("/api/settings")).json();
     pinned = !!s.widget_locked;
     applyPin();

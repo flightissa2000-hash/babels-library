@@ -40,6 +40,7 @@
     setPinMode(false);
     $("#reader").hidden = false;
     document.body.style.overflow = "hidden";
+    if (splitWanted()) setSplit(true, false);
     $("#readerTitle").textContent = item.title || "Untitled";
     $("#exportMd").href = `/api/export/annotations?format=md&items=${item.id}`;
     $("#exportJson").href = `/api/export/annotations?format=json&items=${item.id}`;
@@ -59,6 +60,10 @@
     $("#rView").hidden = video;
     $("#toggleNotes").hidden = video;
     $("#rFontRow").hidden = R.kind !== "epub";
+    $("#rEqRow").hidden = !(R.kind === "epub" && isCopy(item));
+    $("#rCopy").hidden = !(R.kind === "pdf" && item.kind !== "graphic");
+    paintDone();
+    $("#tocHits").hidden = true; $("#tocList").hidden = false; $("#tocFindQ").value = ""; R.findRun = (R.findRun || 0) + 1; R.pageText = null; R.findCfi = null;
     syncViewMenu();
     syncArrows();
     $("#rListen").hidden = item.audio_status !== "ready";
@@ -106,6 +111,7 @@
     $("#reader").classList.remove("immersive", "peek");
     document.body.classList.remove("reader-immersive", "peek-player");
     $("#reader").hidden = true;
+    document.documentElement.classList.remove("reader-split");      // (the choice is kept for next time)
     document.body.style.overflow = "";
     loadItems();
   }
@@ -149,6 +155,7 @@
     $$("#rMode button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode()));
     $("#rWidth").value = width();
     $("#rFont").value = pref("font", "epub", 105);
+    $("#rEq").value = pref("eq", "epub", 1.4);
   }
   function setMode(m) {
     setPref("mode", typeKey(), m);
@@ -561,17 +568,35 @@
     if (R.item) saveProgress(frac > 0.01 ? `${topPg}:${frac.toFixed(3)}` : topPg, R.pdf.numPages > 1 ? (cur - 1) / (R.pdf.numPages - 1) : 1);
   }
 
+  /* just the selected words: a range's own rectangles and text also take in whatever else it crosses,
+     and a selection running over a page break crosses whole-page canvases and layers */
+  function selectedText(range) {
+    const top = range.commonAncestorContainer, root = top.nodeType === 1 ? top : top.parentNode;
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    const part = document.createRange(), boxes = [];
+    let quote = "";
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!range.intersectsNode(n) || !n.parentElement?.closest(".textLayer")) continue;
+      if (n.nodeType === 1) { if (n.tagName === "BR") quote += " "; continue; }
+      const from = n === range.startContainer ? range.startOffset : 0, to = n === range.endContainer ? range.endOffset : n.length;
+      if (to <= from) continue;
+      part.setStart(n, from); part.setEnd(n, to);
+      quote += n.data.slice(from, to);
+      boxes.push(...part.getClientRects());
+    }
+    return { quote: quote.replace(/\s+/g, " ").trim(), boxes };
+  }
   function pdfSelection() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
     const range = sel.getRangeAt(0);
     const startPage = range.startContainer.parentElement?.closest(".pdf-page");
     if (!startPage || !doc().contains(startPage)) return null;
-    const quote = sel.toString().replace(/\s+/g, " ").trim();
+    const { quote, boxes } = selectedText(range);
     if (!quote) return null;
     const rects = [];
     const pageBoxes = R.pages.filter((p) => p && p.rendered).map((p) => ({ p, b: p.el.getBoundingClientRect() }));
-    for (const cr of range.getClientRects()) {
+    for (const cr of boxes) {
       if (cr.width < 1 || cr.height < 1) continue;
       const cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
       const hit = pageBoxes.find(({ b }) => cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom);
@@ -583,8 +608,7 @@
       else rects.push(r);
     }
     if (!rects.length) return null;
-    const last = range.getClientRects();
-    const lr = last[last.length - 1];
+    const lr = boxes[boxes.length - 1];
     return { quote, locator: { page: rects[0].p, rects }, at: { x: lr.right, y: lr.bottom } };
   }
 
@@ -631,6 +655,9 @@
     applyEpubTheme();
     R.rendition.hooks.content.register((contents) => {
       const d = contents.document;
+      d.documentElement.style.setProperty("--eq", pref("eq", "epub", 1.4));
+      { const wide = d.createElement("style"); wide.textContent = ".babel-paper .eq{overflow-x:auto;overflow-y:hidden;white-space:nowrap;-webkit-overflow-scrolling:touch} .babel-paper .eq img{max-width:none !important}"; d.head.append(wide); }   // (a wide equation scrolls at full size here, rather than shrinking to fit)
+      if ((() => { const m = String((THEMES[document.documentElement.dataset.theme] || {}).bg || "").match(/[0-9a-f]{6}/i); if (!m) return false; const v = parseInt(m[0], 16); return ((v >> 16) * 299 + ((v >> 8 & 255) * 587) + (v & 255) * 114) / 1000 < 110; })()) { const inv = d.createElement("style"); inv.textContent = "img.im,img.gl,.eq img{filter:invert(1) hue-rotate(180deg)}"; d.head.append(inv); }   // (equations on a dark page)
       const ff = d.createElement("style");   // the book face isn't otherwise available inside the page
       ff.textContent = `@font-face{font-family:"Libre Baskerville";src:url("${location.origin}/vendor/fonts/libre-baskerville-latin-400-normal.woff2") format("woff2");font-weight:400}
         @font-face{font-family:"Libre Baskerville";src:url("${location.origin}/vendor/fonts/libre-baskerville-latin-700-normal.woff2") format("woff2");font-weight:700}
@@ -1231,6 +1258,9 @@
     const item = R.item;
     if (!item) return;
     $("#tocJump").hidden = !(R.kind === "pdf" || R.kind === "comic");
+    const findable = (R.kind === "pdf" && item.kind !== "graphic") || R.kind === "epub";
+    $("#tocFind").hidden = !findable;
+    if (!findable) { $("#tocHits").hidden = true; box.hidden = false; }
     $("#tocTitle").textContent = R.kind === "video" ? (item.kind === "tv" ? item.series || "Episodes" : S.coll ? "Collection" : "Films") : "Contents";
     box.innerHTML = `<p class="hint">Loading…</p>`;
     let html = "";
@@ -1279,6 +1309,173 @@
       else { R.page = n - 1; renderComic(); }
     }
     setTimeout(markTocCurrent, 300);
+  }
+
+  /* ---------- searching the document, from Contents ---------- */
+  const isCopy = (it) => String(it?.source || "").startsWith("reading-copy:");
+  function flatten(root) {
+    const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let flat = "", space = true, was = null;
+    const map = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (n.parentElement?.closest("script,style,.ink-pin")) continue;
+      const v = n.nodeValue, block = n.parentElement?.closest("p,li,div,h1,h2,h3,h4,td,section");
+      if (block !== was && !space) { flat += " "; map.push([n, 0]); space = true; }
+      was = block;
+      for (let i = 0; i < v.length; i++) {
+        let ch = v[i];
+        if (ch === "\u00ad" || ch === "\u200b") continue;
+        if (/\s/.test(ch)) { if (space) continue; ch = " "; space = true; } else space = false;
+        flat += ch; map.push([n, i]);
+      }
+    }
+    return { flat, map };
+  }
+  function allAt(text, q) {
+    const low = text.toLowerCase(), out = [];
+    for (let at = low.indexOf(q); at >= 0 && out.length < 500; at = low.indexOf(q, at + q.length)) out.push(at);
+    return out;
+  }
+  const hitHtml = (i, where, text, at, len) => `<button class="toc-hit" type="button" data-hit="${i}"><small>${esc(where)}</small>${at > 45 ? "…" : ""}${esc(text.slice(Math.max(0, at - 45), at))}<mark>${esc(text.slice(at, at + len))}</mark>${esc(text.slice(at + len, at + len + 60))}…</button>`;
+  function clearFind() {
+    doc().querySelectorAll(".find-layer").forEach((x) => x.remove());
+    if (R.findCfi) { try { R.rendition.annotations.remove(R.findCfi, "highlight"); } catch (e) {} R.findCfi = null; }
+  }
+  async function pdfPageText(n) {
+    R.pageText = R.pageText || {};
+    if (R.pageText[n] == null) {
+      const page = await R.pdf.getPage(n);
+      const c = await page.getTextContent();
+      R.pageText[n] = c.items.map((x) => (x.str || "") + (x.hasEOL ? " " : "")).join("").replace(/\s+/g, " ");
+    }
+    return R.pageText[n];
+  }
+  async function runFind(qRaw) {
+    const q = qRaw.trim().toLowerCase(), run = (R.findRun = (R.findRun || 0) + 1), box = $("#tocHits");
+    const list = $("#tocList");
+    clearFind();
+    if (q.length < 2) { box.hidden = true; list.hidden = false; return; }
+    box.hidden = false; list.hidden = true;
+    box.innerHTML = `<p class="hint" id="findState">Searching…</p><div id="findRows"></div>`;
+    R.hits = [];
+    const rows = $("#findRows"), state = $("#findState");
+    const add = (html) => { if (run === R.findRun) rows.insertAdjacentHTML("beforeend", html); };
+    let any = false;
+    if (R.kind === "pdf") {
+      for (let n = 1; n <= R.pdf.numPages && run === R.findRun; n++) {
+        state.textContent = `Searching page ${n} of ${R.pdf.numPages}…`;
+        const text = await pdfPageText(n);
+        any = any || text.trim().length > 10;
+        allAt(text, q).forEach((at, nth) => { R.hits.push({ page: n, nth }); add(hitHtml(R.hits.length - 1, `Page ${n}`, text, at, q.length)); });
+      }
+    } else if (R.kind === "epub") {
+      await R.book.ready;
+      const items = R.book.spine.spineItems.filter((x) => x.linear !== "no");
+      const flatToc = (l) => l.flatMap((t) => [t, ...flatToc(t.subitems || [])]);
+      const toc = flatToc(R.book.navigation?.toc || []);
+      for (let k = 0; k < items.length && run === R.findRun; k++) {
+        const sec = items[k];
+        state.textContent = `Searching section ${k + 1} of ${items.length}…`;
+        try {
+          const page = await sec.load(R.book.load.bind(R.book));
+          const body = page.querySelector ? (page.querySelector("body") || page) : page;
+          const { flat, map } = flatten(body);
+          any = any || flat.trim().length > 10;
+          const label = (toc.find((t) => t.href.split("#")[0].split("/").pop() === sec.href.split("/").pop())?.label || "").trim();
+          for (const [nth, at] of allAt(flat, q).entries()) {
+            const range = body.ownerDocument.createRange();
+            range.setStart(map[at][0], map[at][1]);
+            const end = map[at + q.length - 1];
+            range.setEnd(end[0], end[1] + 1);
+            R.hits.push({ cfi: sec.cfiFromRange(range), href: sec.href, nth });
+            add(hitHtml(R.hits.length - 1, label || `Section ${k + 1}`, flat, at, q.length));
+          }
+        } catch (e) { console.warn("search:", e); }
+      }
+    }
+    if (run !== R.findRun) return;
+    state.textContent = R.hits.length ? `${R.hits.length} match${R.hits.length === 1 ? "" : "es"}` : any ? "Nothing found." : "This document is pictures of its pages, so it has no text to search.";
+  }
+  async function goToHit(h) {
+    clearFind();
+    R.lastHit = h;
+    if (R.kind === "epub") {
+      // (the match is found again in the page as shown: a CFI worked out from the loaded file can land a little off)
+      const want = (R.findQ ?? $("#tocFindQ")?.value ?? "").trim().toLowerCase();
+      const rend = R.rendition || R.rend;
+      await rend.display(h.href);
+      const c = rend.getContents().find((x) => (R.book.spine.get(x.sectionIndex)?.href || "").split("/").pop() === h.href.split("/").pop());
+      let cfi = h.cfi;
+      if (c && want) {
+        const { flat, map } = flatten(c.document.body);
+        const at = allAt(flat, want)[h.nth] ?? allAt(flat, want)[0];
+        if (at != null) {
+          const range = c.document.createRange();
+          range.setStart(map[at][0], map[at][1]);
+          const end = map[at + want.length - 1];
+          range.setEnd(end[0], end[1] + 1);
+          try { cfi = c.cfiFromRange(range); } catch (e) {}
+        }
+      }
+      await rend.display(cfi);
+      R.findCfi = cfi;
+      rend.annotations.highlight(cfi, {}, null, "find-hl", { fill: "rgb(255, 210, 64)", "fill-opacity": "0.55", "mix-blend-mode": "multiply" });
+      return;
+    }
+    goToPage(h.page);
+    const q = $("#tocFindQ").value.trim().toLowerCase();
+    for (let t = 0; t < 40; t++) {
+      const p = R.pages[h.page - 1], tl = p?.el?.isConnected && p.el.querySelector(".textLayer");
+      if (tl && tl.querySelector("span")) {
+        await new Promise((r) => setTimeout(r, 350));       // (the text settles into place just after it appears)
+        const { flat, map } = flatten(tl);
+        const at = allAt(flat, q)[h.nth] ?? allAt(flat, q)[0];
+        if (at != null) {
+          const range = document.createRange();
+          range.setStart(map[at][0], map[at][1]);
+          const end = map[at + q.length - 1];
+          range.setEnd(end[0], end[1] + 1);
+          const b = p.el.getBoundingClientRect(), layer = document.createElement("div");
+          layer.className = "find-layer";
+          layer.innerHTML = [...range.getClientRects()].filter((r) => r.width > 1).map((r) => `<i style="left:${(r.left - b.left) / b.width * 100}%;top:${(r.top - b.top) / b.height * 100}%;width:${r.width / b.width * 100}%;height:${r.height / b.height * 100}%"></i>`).join("");
+          p.el.append(layer);
+          layer.firstChild?.scrollIntoView({ block: "center" });
+          // (a page being drawn for the first time clears what's on it: put the mark back)
+          await new Promise((r) => setTimeout(r, 900));
+          if (!layer.isConnected && h === R.lastHit) continue;
+        }
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  }
+  /* a paper's reading copy: makes it if need be, then opens it */
+  async function openReadingCopy(item, again) {
+    const copy = !again && (S.copies || []).find((x) => x.source === `reading-copy:${item.id}` && x.has_file);
+    // (a copy made by an older converter is made again first: its notes and place move to the same words)
+    const now = copy && await api.get(`/api/items/${item.id}/reading-copy`).catch(() => null);
+    const update = !!(copy && now && (now.stale || now.state === "making"));
+    if (copy && !update) return open(copy);
+    const send = now?.state === "making" ? now : await api.send("POST", `/api/items/${item.id}/reading-copy`).catch((e) => ({ state: "failed", error: e.message }));
+    toast(update ? "Updating this reading copy with the improved converter…" : "Making a reading copy…");
+    for (let st = send; ; st = await api.get(`/api/items/${item.id}/reading-copy`)) {
+      if (st.state === "failed") { if (update) return open(copy); return toast(st.error || "This PDF couldn't be converted.", "error"); }
+      if (st.state === "done" && !st.stale) break;
+      if (st.state === "done" && st.stale) await api.send("POST", `/api/items/${item.id}/reading-copy`).catch(() => {});
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    const st = await api.get(`/api/items/${item.id}/reading-copy`);
+    await loadItems();
+    toast(st.report?.mode === "pictures" ? "Reading copy made. This PDF's text can't be read reliably, so it shows the pages as pictures." : update ? "Reading copy updated." : "Reading copy made.");
+    const made = (S.copies || []).find((x) => x.id === st.copy);
+    if (made) open(made);
+  }
+  window.openReadingCopy = openReadingCopy;
+  function paintDone() {
+    const b = $("#rDone"), it = R.item;
+    if (!b || !it) return;
+    b.hidden = R.kind === "video";
+    b.textContent = isFinished(it) ? "✓ Finished" : "Mark finished";
   }
 
   function toggleToc(show) {
@@ -1519,6 +1716,7 @@
   }
   function keyNav(e) {
     if (e.target.matches?.("input,textarea,select")) return;
+    if ((e.key === "j" || e.key === "J") && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.isContentEditable) { e.preventDefault(); $("#jbModal.open") ? Journal.close() : Journal.openHere(); return; }     // (the journal, over the book)
     if (R.kind === "video") {
       if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && R.videoJump) { e.preventDefault(); R.videoJump((e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 30 : 5)); }
       return;
@@ -1695,6 +1893,30 @@
     }, 450);
   }
 
+  /* ---------- split screen: the reader on the left, the rest of Babel's Library usable beside it ---------- */
+  const SPLIT_KEY = "inkwell-reader-split";
+  let splitSide = "reader";        // where you last clicked: the reader's keys only act there while split
+  const isSplit = () => document.documentElement.classList.contains("reader-split");
+  function splitWidth(w) {
+    if (w == null) { try { w = +localStorage.getItem(SPLIT_KEY + "-w") || 50; } catch (e) { w = 50; } }
+    w = Math.min(75, Math.max(28, w));
+    document.documentElement.style.setProperty("--rsplit", w + "vw");
+    window.fitTopbar?.();          // (the app's top bar gets what's left)
+    return w;
+  }
+  function setSplit(on, remember = true) {
+    if (MINI) on = false;
+    queueRelayout(true);
+    document.documentElement.classList.toggle("reader-split", on);
+    document.body.style.overflow = on || $("#reader").hidden ? "" : "hidden";
+    $("#rSplit").setAttribute("aria-pressed", on ? "true" : "false");
+    if (remember) { try { localStorage.setItem(SPLIT_KEY, on ? "1" : ""); } catch (e) {} }
+    splitWidth();
+    splitSide = "reader";
+    queueRelayout();
+  }
+  const splitWanted = () => { try { return !MINI && localStorage.getItem(SPLIT_KEY) === "1"; } catch (e) { return false; } };
+
   /* ---------- full screen / window ---------- */
   async function toggleFull() {
     queueRelayout(true);  // hide and remember the spot before the window starts changing size
@@ -1712,6 +1934,27 @@
     $("#rNext").onclick = () => goSide("right");
     $("#rPrev").onclick = () => goSide("left");
     $("#rFull").onclick = toggleFull;
+    if (MINI) $("#rSplit").hidden = true;
+    $("#rSplit").onclick = () => setSplit(!isSplit());
+    $("#rJournal").onclick = () => ($("#jbModal.open") ? Journal.close() : Journal.openHere());
+    document.addEventListener("pointerdown", (e) => { splitSide = e.target.closest?.("#reader") ? "reader" : "app"; }, true);
+    // drag the reader's edge to share the window differently
+    $("#rSplitGrip").addEventListener("pointerdown", (e) => {
+      if (!isSplit()) return;
+      e.preventDefault();
+      const grip = e.currentTarget;
+      grip.setPointerCapture(e.pointerId);
+      document.documentElement.classList.add("split-dragging");
+      let w = 50;
+      const move = (ev) => { w = splitWidth((ev.clientX / innerWidth) * 100); };
+      const up = () => {
+        grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up);
+        document.documentElement.classList.remove("split-dragging");
+        try { localStorage.setItem(SPLIT_KEY + "-w", String(Math.round(w))); } catch (err) {}
+        queueRelayout();
+      };
+      grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up);
+    });
     $("#rView").onclick = (e) => { e.stopPropagation(); $("#viewPop").hidden = !$("#viewPop").hidden; };
     document.addEventListener("click", (e) => { if (!e.target.closest(".view-wrap")) $("#viewPop").hidden = true; });
     $("#rMode").onclick = (e) => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); };
@@ -1740,6 +1983,13 @@
     });
     $("#rToc").onclick = () => toggleToc();
     $("#tocClose").onclick = () => toggleToc(false);
+    $("#tocFind").onsubmit = (e) => { e.preventDefault(); runFind($("#tocFindQ").value); };
+    $("#tocFindQ").oninput = (e) => { clearTimeout(R.findT); if (!e.target.value.trim()) { R.findRun = (R.findRun || 0) + 1; clearFind(); $("#tocHits").hidden = true; $("#tocList").hidden = false; } else R.findT = setTimeout(() => runFind(e.target.value), 500); };
+    $("#tocHits").onclick = (e) => { const b = e.target.closest("[data-hit]"); if (b) goToHit(R.hits[Number(b.dataset.hit)]); };
+    $("#rEq").oninput = (e) => { setPref("eq", "epub", Number(e.target.value)); R.rendition?.getContents().forEach((c) => c.document.documentElement.style.setProperty("--eq", e.target.value));
+      clearTimeout(R.eqT); R.eqT = setTimeout(() => { try { R.rendition.views().forEach((v) => { v.expand?.(); v.pane?.render(); }); } catch (err) {} drawEpubPins(); }, 250); };
+    $("#rDone").onclick = async () => { if (R.item) { await toggleFinished(R.item); paintDone(); } };
+    $("#rCopy").onclick = () => { $("#viewPop").hidden = true; if (R.item) openReadingCopy(R.item); };
     $("#tocGo").onclick = () => goToPage(Number($("#tocPage").value) || 1);
     $("#tocPage").onkeydown = (e) => { if (e.key === "Enter") goToPage(Number(e.target.value) || 1); };
     $("#tocList").onclick = async (e) => {
@@ -1803,6 +2053,7 @@
     });
     document.addEventListener("keydown", (e) => {
       if ($("#reader").hidden || !$("#lightbox").hidden) return;
+      if (isSplit() && (splitSide === "app" || (e.target.closest && e.target !== document.body && !e.target.closest("#reader")))) return;  // (typing or reading on the other side)
       if (e.key === "Escape") {
         if (!$("#selPop").hidden) hidePop();
         else if (!$("#viewPop").hidden) $("#viewPop").hidden = true;
@@ -1864,6 +2115,11 @@
       const b = e.target.closest("button");
       if (!b) return;
       if (b.hasAttribute("data-define")) return define();
+      if (b.hasAttribute("data-cork")) {      // the words, as a clipping on the corkboard (its source opens this book)
+        const p = R.pending;
+        if (p && p.quote && window.Cork) Cork.pin({ type: "snippet", text: p.quote.trim(), title: R.item ? R.item.title : "", item_id: R.item ? R.item.id : null }).then((c) => c && toast("📌 Pinned to the corkboard"));
+        return hidePop();
+      }
       createFromPending(b.dataset.color);
     });
 

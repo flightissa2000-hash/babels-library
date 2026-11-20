@@ -18,6 +18,9 @@ const KIND_LABEL = { article: "Articles", book: "Books", graphic: "Graphic novel
 const COMIC_TYPES = ["cbz", "cbr", "cb7", "cbt"];
 const READ_KINDS = ["article", "book", "graphic"], MEDIA_KINDS = ["music", "tv", "movie"];
 const VIDEO_KINDS = ["tv", "movie"];
+// what you're doing with something in progress: reading a book, watching a film or show, listening to music
+const doingWord = (kind) => (VIDEO_KINDS.includes(kind) ? "Watching" : kind === "music" ? "Listening" : "Reading");
+const doneWord = (kind) => (VIDEO_KINDS.includes(kind) ? "watched" : kind === "music" ? "heard" : "read");
 const AREA_KINDS = { books: ["book", "graphic"], articles: ["article"], music: ["music"], video: VIDEO_KINDS, journal: [] };
 const READ_AREAS = ["books", "articles"];
 const MINI = new URLSearchParams(location.search).has("mini");  // the separate reader window opened from the widget
@@ -133,7 +136,7 @@ function groupKeys(it) {
       return [it.topic || "General Works"];
     case "topic": return [it.topic || "General Works"];
     case "journal": return [it.journal || "No journal listed"];
-    case "genre": return it.kind === "article" ? [] : [it.genre || "Unknown genre"];
+    case "genre": return it.kind === "article" ? [] : [it.genre || (it.fiction === 0 ? "General non-fiction" : "Unknown genre")];
     case "subject": return [TAX.subjects.includes(it.subject) ? it.subject : "General Works"];
     case "series": return it.kind === "article" ? [] : [it.series || "Not in a series"];
     case "fiction": return [it.fiction === 1 ? "Fiction" : (it.fiction === 0 || it.kind === "article") ? "Non-fiction" : "Not yet known"];
@@ -169,9 +172,10 @@ const kindMatches = (it, k) => k === "manga" ? it.kind === "graphic" && it.forma
 const ficMatches = (it) => S.fic === "all" || it.fiction === (S.fic === "fiction" ? 1 : 0);
 const groupMemory = (a) => "inkwell-group-" + a + (a === "books" && S.fic !== "all" ? "-" + S.fic : "");
 const BOOK_GROUPS = {
-  all: [["subject", "Subject"], ["year", "Year"], ["fiction", "Fiction or non-fiction"], ["author", "Author"], ["tag", "Tag"], ["collection", "Collection"]],
-  fiction: [["genre", "Genre"], ["series", "Series"], ["author", "Author"], ["year", "Year"], ["tag", "Tag"], ["collection", "Collection"]],
-  nonfiction: [["subject", "Subject"], ["topic", "Topic"], ["genre", "Genre"], ["author", "Author"], ["year", "Year"], ["tag", "Tag"], ["collection", "Collection"]],
+  // (Fiction / Non-fiction already has its own switch; Genre stands in for Subject and Tag)
+  all: [["genre", "Genre"], ["year", "Year"], ["author", "Author"], ["collection", "Collection"]],
+  fiction: [["genre", "Genre"], ["series", "Series"], ["author", "Author"], ["year", "Year"], ["collection", "Collection"]],
+  nonfiction: [["genre", "Genre"], ["topic", "Topic"], ["author", "Author"], ["year", "Year"], ["collection", "Collection"]],
 };
 function paintGroups(a) {
   const groupOpts = a === "music"
@@ -285,6 +289,7 @@ function grouped() {
   let groups = [...map.entries()];
   if (S.groupBy === "year") groups.sort((a, b) => (parseInt(b[0]) || 0) - (parseInt(a[0]) || 0));
   else if (S.groupBy === "author") groups.sort((a, b) => a[0].localeCompare(b[0]));
+  else if (S.groupBy === "genre") groups.sort((a, b) => (/^(Unknown|General)/.test(a[0]) - /^(Unknown|General)/.test(b[0])) || a[0].localeCompare(b[0]));
   else if (S.groupBy === "subject") groups.sort((a, b) => TAX.subjects.indexOf(a[0]) - TAX.subjects.indexOf(b[0]));
   else if (S.groupBy === "series") {
     groups.sort((a, b) => (a[0] === "Not in a series") - (b[0] === "Not in a series") || a[0].localeCompare(b[0]));
@@ -322,6 +327,21 @@ function seriesRuns(items) {
     else runs.push([it]);
   }
   return runs;
+}
+
+// every volume of a series together, in reading order, where the series first turns up in the list
+function seriesTogether(items) {
+  const bySeries = new Map();
+  for (const it of items) if (inSeries(it)) { const k = seriesKey(it.series); if (!bySeries.has(k)) bySeries.set(k, []); bySeries.get(k).push(it); }
+  const out = [], done = new Set();
+  for (const it of items) {
+    if (!inSeries(it)) { out.push(it); continue; }
+    const k = seriesKey(it.series);
+    if (done.has(k)) continue;
+    done.add(k);
+    out.push(...bySeries.get(k).sort(seriesOrder));
+  }
+  return out;
 }
 
 const ransom = (s) => esc(s).split(/\s+/).map((w) => `<span class="rl">${w}</span>`).join(" ");
@@ -365,6 +385,43 @@ document.addEventListener("click", (e) => {
 const tagChips = (it, n = 3) => (it.tags || []).slice(0, n).map((t) => `<span class="tagchip" data-tag="${esc(t)}">${esc(t)}</span>`).join("");
 
 /* ---------------- views ---------------- */
+// where a book or paper stands, for the layouts: journal status first, then how far it's read
+function lvStatus(it) {
+  const st = jstat(it), p = pctOf(it);
+  if (st === "finished" || p >= 97) return { k: "done", w: "Finished" };
+  if (st === "next") return { k: "next", w: "Up next" };
+  if (st === "hold") return { k: "hold", w: "On hold" };
+  if (st === "dropped") return { k: "hold", w: "Dropped" };
+  if (st === "reading" || p > 2) return { k: "reading", w: doingWord(it.kind) };
+  return { k: "new", w: "" };
+}
+const LAYOUTS = ["heist", "list", "table", "board", "index", "stars", "cork", "timeline", "mosaic"];
+const layoutFor = (area) => { let v = "heist"; try { v = localStorage.getItem("inkwell-layout-" + area) || "heist"; } catch (e) {} return LAYOUTS.includes(v) ? v : "heist"; };
+
+/* ---- a series is one bundle in every layout (like the Cards' stacks) until you open it out; the ones opened out
+   are remembered (seriesFolded). A bundle shows the next book to read on top, the series' name and how far through
+   it you are; clicking it opens it out, and "▴ bundle" on its first book packs it up again. */
+function bundles(items) {
+  return seriesRuns(seriesTogether(items)).flatMap((run) => {
+    if (run.length < 2) return run.map((it) => ({ it }));
+    const k = seriesKey(run[0].series);
+    if (seriesFolded(k)) return [{ it: seriesNext(run), b: { k, run, n: run.length } }];
+    return run.map((it, j) => ({ it, first: j === 0 ? { k, n: run.length } : null }));
+  });
+}
+function bundleStat(run) {
+  const ks = run.map((x) => lvStatus(x).k), done = ks.filter((x) => x === "done").length;
+  const p = Math.round(run.reduce((t, x) => t + (lvStatus(x).k === "done" ? 100 : pctOf(x)), 0) / run.length);
+  const k = done === run.length ? "done" : ks.includes("reading") || done ? "reading" : ks.includes("next") ? "next" : ks.every((x) => x === "hold") ? "hold" : "new";
+  return { k, p, done, w: k === "done" ? "Finished" : done ? `${done} of ${run.length} ${doneWord(run[0].kind)}` : k === "reading" ? doingWord(run[0].kind) : k === "next" ? "Up next" : "" };
+}
+const eStat = (e) => (e.b ? bundleStat(e.b.run) : { ...lvStatus(e.it), p: pctOf(e.it) });
+const eTitle = (e) => (e.b ? e.it.series : e.it.title || "Untitled");
+const eOpen = (e) => (e.b ? `data-fold-open="${esc(e.b.k)}" title="${e.b.n} books: click to open the series out"` : `data-open="${e.it.id}"`);
+const eCount = (e) => (e.b ? `<span class="lv-bn" title="${e.b.n} books in this series">📚 ${e.b.n}</span>` : "");
+const eRestack = (e) => (e.first ? `<span class="lv-restack" data-fold-series="${esc(e.first.k)}" title="Bundle this series back up">▴ bundle the ${e.first.n}</span>` : "");
+const eYears = (e) => { if (!e.b) return e.it.year || ""; const ys = e.b.run.map((x) => parseInt(x.year)).filter(Boolean); return ys.length ? (Math.min(...ys) === Math.max(...ys) ? String(ys[0]) : `${Math.min(...ys)}–${Math.max(...ys)}`) : ""; };
+
 const VIEWS = {
   /* Card catalogue: each group is a drawer of index cards; hover a card to pull it up. */
   catalog(groups) {
@@ -396,6 +453,7 @@ const VIEWS = {
                 ${(() => { const st = jstat(it); return st === "dropped" ? `<span class="ic-stamp dropped">DROPPED${it.progress > 0.02 ? " · " + Math.round(it.progress * 100) + "%" : ""}</span>`
                   : st === "finished" || it.progress > 0.97 ? `<span class="ic-stamp">READ</span>`
                   : st === "hold" ? `<span class="ic-stamp">ON HOLD</span>`
+                  : st === "next" ? `<span class="ic-stamp">UP NEXT</span>`
                   : st === "reading" ? `<span class="ic-stamp">ON LOAN${it.progress > 0.02 ? " · " + Math.round(it.progress * 100) + "%" : ""}</span>` : ""; })()}
               </span>
             </span>
@@ -403,6 +461,94 @@ const VIEWS = {
           </button>`).join("")}
         </div>
       </section>`).join("") + `</div>`;
+  },
+  /* ---- layouts for books and articles (Library → Layout). Efficient: list, grid, board, index. Fun: shelf, cork,
+     flow, mosaic. Every row/card is a [data-open] button, so a click opens it like everywhere else. */
+  list(groups) {
+    return `<div class="lv-list">` + groups.map(([name, items]) => `<section class="lv-sec"><h3 class="lv-h">${esc(name)} <small>${items.length}</small></h3>
+      ${bundles(items).map((e) => { const it = e.it, s = eStat(e);
+        return `<button class="lv-row ${e.b ? "is-bundle" : ""}" ${eOpen(e)}><span class="lv-dot" style="--c:${colorFor(it)}"></span><b class="lv-t">${esc(eTitle(e))} ${eCount(e)}${eRestack(e)}</b>
+          <span class="lv-a">${esc(authorLine(it))}</span><span class="lv-y">${esc(eYears(e))}</span><span class="lv-s s-${s.k}">${s.w}</span>
+          <span class="lv-p"><i style="width:${s.p}%"></i></span><span class="lv-n">${s.p ? s.p + "%" : ""}</span></button>`; }).join("")}</section>`).join("") + `</div>`;
+  },
+  board(groups) {
+    const cols = [["next", "Up next"], ["reading", S.area === "video" ? "Watching" : S.area === "music" ? "Listening" : "Reading"], ["hold", "On hold"], ["new", "Not started"], ["done", "Finished"]];
+    const all = [...new Map(groups.flatMap(([, items]) => items).map((it) => [it.id, it])).values()];
+    const by = Object.fromEntries(cols.map(([k]) => [k, []]));
+    for (const e of bundles(all)) (by[eStat(e).k] || by.new).push(e);
+    return `<div class="lv-board">` + cols.map(([k, n]) => `<section class="lv-col c-${k}"><h3 class="lv-h">${n} <small>${by[k].length}</small></h3>
+      ${by[k].slice(0, 120).map((e) => { const s = eStat(e); return `<button class="lv-card ${e.b ? "is-bundle" : ""}" ${eOpen(e)}><span class="lv-mini">${coverHTML(e.it)}</span><span><b>${esc(eTitle(e))} ${eCount(e)}</b>
+        <small>${esc(authorLine(e.it))}${e.b && s.w ? " · " + s.w : ""}</small>${eRestack(e)}${k === "reading" ? `<span class="lv-p"><i style="width:${s.p}%"></i></span>` : ""}</span></button>`; }).join("") || `<p class="hint">Nothing here</p>`}</section>`).join("") + `</div>`;
+  },
+  index(groups) {
+    // a series files under its own name (one entry while it's bundled; its volumes in order when it's opened out)
+    const filing = (e) => (inSeries(e.it) ? e.it.series : e.it.title || "").replace(/^(the|a|an)\s+/i, "");
+    const all = bundles([...new Map(groups.flatMap(([, items]) => items).map((it) => [it.id, it])).values()])
+      .sort((a, b) => filing(a).localeCompare(filing(b), undefined, { sensitivity: "base" }) || (inSeries(a.it) && inSeries(b.it) ? seriesOrder(a.it, b.it) : 0));
+    const letterOf = (e) => { const c = filing(e).charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : "#"; };
+    const by = new Map();
+    for (const e of all) { const l = letterOf(e); if (!by.has(l)) by.set(l, []); by.get(l).push(e); }
+    const letters = [..."#ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+    return `<div class="lv-index"><nav class="lv-az">${letters.map((l) => by.has(l) ? `<a href="#az-${l === "#" ? "num" : l}" data-az="${l === "#" ? "num" : l}">${l}</a>` : `<span>${l}</span>`).join("")}</nav>
+      <div class="lv-cols">${[...by].map(([l, list]) => `<section class="lv-letter" id="az-${l === "#" ? "num" : l}"><h3>${l}</h3>${list.map((e) => { const s = eStat(e);
+        return `<button class="lv-entry ${e.b ? "is-bundle" : ""}" ${eOpen(e)}><b>${esc(eTitle(e))}</b> ${eCount(e)} <small>${esc(authorLine(e.it))}${eYears(e) ? ", " + esc(eYears(e)) : ""}${e.b && s.w ? " · " + s.w : ""}</small>${s.k === "done" ? " <span class=\"lv-tick\">✓</span>" : ""}${eRestack(e)}</button>`; }).join("")}</section>`).join("")}</div></div>`;
+  },
+  cork(groups) {
+    return `<div class="lv-cork">` + groups.map(([name, items]) => `<section class="lv-board-sec"><h3 class="lv-tape">${esc(name)}</h3><div class="lv-pins">
+      ${bundles(items).map((e) => { const it = e.it, r = (hash(it.id + "r") % 11) - 5, s = eStat(e);
+        return `<button class="lv-polaroid ${e.b ? "stack" : ""}" ${eOpen(e)} style="--r:${r}deg;--pin:${["#d9534f", "#f0ad4e", "#5bc0de", "#5cb85c"][hash(it.id) % 4]}">
+          <span class="lv-photo">${coverHTML(it)}</span><span class="lv-scrawl">${esc(eTitle(e))}${e.b ? `<small>${e.b.n} books${s.w ? " · " + s.w : ""}</small>` : ""}</span>${eRestack(e)}${s.k === "done" ? `<span class="lv-stampk">READ</span>` : s.k === "next" ? `<span class="lv-stampk next">NEXT</span>` : ""}</button>`; }).join("")}
+      </div></section>`).join("") + `</div>`;
+  },
+  /* Table: a sortable spreadsheet (click a column heading); a series is one row while it's bundled */
+  table(groups) {
+    const cols = [["title", "Title"], ["author", "Author"], ["year", "Year"], ["genre", "Genre"], ["pages", "Pages"], ["status", "Status"], ["progress", "Progress"]];
+    const k = S.tableSort || "", dir = S.tableDir || 1;
+    const pages = (e) => (e.b ? e.b.run.reduce((t, x) => t + (parseInt(x.pages) || 0), 0) : parseInt(e.it.pages) || 0);
+    const val = (e) => ({ title: (inSeries(e.it) ? e.it.series + " " + String(+e.it.series_index || 0).padStart(4, "0") : e.it.title || "").toLowerCase(), author: lastName((e.it.authors || [""])[0]).toLowerCase(),
+      year: parseInt(e.it.year) || 0, genre: (e.it.kind === "article" ? e.it.topic : e.it.genre || "").toLowerCase(), pages: pages(e), status: eStat(e).k, progress: eStat(e).p })[k];
+    const rows = (items) => { let list = bundles(items); if (k) list = [...list].sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; }); return list; };
+    return `<div class="lv-table"><table><thead><tr>${cols.map(([c, n]) => `<th><button data-tsort="${c}" class="${k === c ? "on" : ""}">${n}${k === c ? (dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
+      ${groups.map(([name, items]) => `<tbody><tr class="lv-tg"><th colspan="${cols.length}">${esc(name)} <small>${items.length}</small></th></tr>${rows(items).map((e) => { const it = e.it, s = eStat(e);
+        return `<tr ${eOpen(e)} class="${e.b ? "is-bundle" : ""}" tabindex="0"><td><span class="lv-dot" style="--c:${colorFor(it)}"></span><b>${esc(eTitle(e))}</b> ${eCount(e)}${!e.b && inSeries(it) ? ` <small class="lv-ser">${esc(it.series)}${it.series_index ? " #" + +it.series_index : ""}</small>` : ""}${eRestack(e)}</td>
+          <td>${esc(authorLine(it))}</td><td>${esc(eYears(e))}</td><td>${esc(it.kind === "article" ? it.topic || "" : it.genre || "")}</td><td>${pages(e) || ""}</td>
+          <td><span class="lv-s s-${s.k}">${s.w}</span></td><td><span class="lv-p"><i style="width:${s.p}%"></i></span></td></tr>`; }).join("")}</tbody>`).join("")}</table></div>`;
+  },
+  /* Star chart: each group is a constellation; a book is a star (bigger the longer it is, brighter the further
+     you've read), and a series is joined up in order, like the lines of a constellation */
+  /* Star chart: the real night sky (sky.js draws it after the page is in place) */
+  stars() { return `<div class="sky" id="skyRoot"></div>`; },
+  /* Timeline: one line through the years, covers either side of it; a series is one entry at its first book's year
+     (bundled: one card; opened out: all its books on that card) */
+  timeline(groups) {
+    const all = [...new Map(groups.flatMap(([, items]) => items).map((it) => [it.id, it])).values()];
+    const yr = (it) => parseInt(it.year) || 0;
+    const runs = new Map();
+    for (const it of all) { const k = inSeries(it) ? "s:" + seriesKey(it.series) : "i:" + it.id; if (!runs.has(k)) runs.set(k, []); runs.get(k).push(it); }
+    const blocks = [...runs.values()].map((r) => { r.sort(inSeries(r[0]) ? seriesOrder : () => 0); const ys = r.map(yr).filter(Boolean); return { items: r, y: ys.length ? Math.min(...ys) : 0 }; })
+      .sort((a, b) => (b.y || -1) - (a.y || -1));
+    let last = null, side = 0;
+    const out = [];
+    for (const b of blocks) {
+      const dec = b.y ? Math.floor(b.y / 10) * 10 + "s" : "Undated";
+      if (dec !== last) { out.push(`<div class="lv-tl-dec"><span>${dec}</span></div>`); last = dec; }
+      side ^= 1;
+      const ser = b.items.length > 1, k = ser ? seriesKey(b.items[0].series) : "", shut = ser && seriesFolded(k);
+      const card = (it) => { const s = lvStatus(it); return `<button class="lv-tl-it s-${s.k}" data-open="${it.id}"><span class="lv-tl-cov">${coverHTML(it)}</span><span class="lv-tl-t"><b>${esc(it.title || "Untitled")}</b><small>${esc(authorLine(it))}${s.w ? " · " + s.w : ""}</small></span></button>`; };
+      const head = ser ? `<b class="lv-tl-ser">${esc(b.items[0].series)} · ${b.items.length} books${shut ? "" : ` <span class="lv-restack" data-fold-series="${esc(k)}">▴ bundle</span>`}</b>` : "";
+      const body = shut ? (() => { const top = seriesNext(b.items), s = bundleStat(b.items);
+          return `<button class="lv-tl-it is-bundle s-${s.k}" data-fold-open="${esc(k)}" title="Open out the ${b.items.length} books"><span class="lv-tl-cov">${coverHTML(top)}</span><span class="lv-tl-t"><b>${esc(top.series)}</b><small>${esc(authorLine(top))} · ${b.items.length} books${s.w ? " · " + s.w : ""}</small><span class="lv-p"><i style="width:${s.p}%"></i></span></span></button>`; })()
+        : b.items.map(card).join("");
+      out.push(`<div class="lv-tl-ev ${side ? "l" : "r"}"><span class="lv-tl-yr">${b.y || "?"}</span><div class="lv-tl-card">${head}<div class="lv-tl-row">${body}</div></div></div>`);
+    }
+    return `<div class="lv-tl"><div class="lv-tl-line"></div>${out.join("")}</div>`;
+  },
+  mosaic(groups) {
+    const size = (e) => { if (e.b) return 3; const pg = parseInt(e.it.pages) || (e.it.kind === "article" ? 12 : 300); return pg > 600 ? 3 : pg > 250 ? 2 : 1; };
+    return `<div class="lv-mosaic">` + groups.map(([name, items]) => `<section class="lv-sec"><h3 class="lv-h">${esc(name)} <small>${items.length}</small></h3>
+      <div class="lv-tilesm">${bundles(items).map((e) => { const s = eStat(e), z = size(e);
+        return `<button class="lv-mt s-${s.k} z${z} ${e.b ? "is-bundle" : ""}" ${eOpen(e)} style="--c:${colorFor(e.it)};--p:${s.p}%"><span class="lv-mcov">${coverHTML(e.it)}</span><b>${esc(eTitle(e))}</b><small>${e.b ? `${e.b.n} books${s.w ? " · " + s.w : ""}` : esc(s.w || (s.p ? s.p + "%" : ""))}</small>${eRestack(e)}</button>`; }).join("")}
+      </div></section>`).join("") + `</div>`;
   },
   heist(groups) {
     const all = groups.flatMap(([, items]) => items);
@@ -434,7 +580,7 @@ const VIEWS = {
           ${inSeries(it) ? `<span class="hs-num" title="${esc(it.series)}${it.series_index ? " #" + +it.series_index : ""}">${it.series_index ? +it.series_index : "·"}</span>` : ""}${thumb(it)}
           <span class="hbody"><span class="ht">${esc(it.title || "Untitled")}${it.audio_status === "ready" ? " 🎧" : ""}</span>
             <span class="hsub">${by ? `<span>${esc(by)}</span>` : ""}${it.year ? `<span>${esc(it.year)}</span>` : ""}${inSeries(it) ? `<span class="hs-tag">${it.series_index ? `#${+it.series_index} in ` : ""}${esc(it.series)}</span>` : ""}</span></span>
-          <span class="hside">${it.wanted && !it.has_file ? `<span class="hstat st-wanted" title="On your wishlist">Wanted</span>` : ""}${(() => { const st = jstat(it); return st === "reading" || st === "dropped" || st === "hold" ? `<span class="hstat st-${st}" title="${{ reading: "In progress", dropped: "Dropped", hold: "On hold" }[st]}">${{ reading: "Reading", dropped: "Dropped", hold: "On hold" }[st]}</span>` : ""; })()}${kind ? `<span class="hkind k-${it.kind}">${kind}</span>` : ""}${it.ann_count ? `<span class="hnotes" title="${it.ann_count} annotations">✎ ${it.ann_count}</span>` : ""}<span class="hmark">★</span></span>
+          <span class="hside">${it.wanted && !it.has_file ? `<span class="hstat st-wanted" title="On your wishlist">Wanted</span>` : ""}${(() => { const st = jstat(it); return st === "reading" || st === "dropped" || st === "hold" || st === "next" ? `<span class="hstat st-${st}" title="${{ reading: "In progress", dropped: "Dropped", hold: "On hold", next: "Up next" }[st]}">${{ reading: doingWord(it.kind), dropped: "Dropped", hold: "On hold", next: "Up next" }[st]}</span>` : ""; })()}${kind ? `<span class="hkind k-${it.kind}">${kind}</span>` : ""}${it.ann_count ? `<span class="hnotes" title="${it.ann_count} annotations">✎ ${it.ann_count}</span>` : ""}<span class="hmark">★</span></span>
           ${pct > 1 ? `<span class="hprog" title="${pct}% read"><i style="width:${pct}%"></i></span>` : ""}
         </button>`;
     }
@@ -502,6 +648,10 @@ function renderHome(lib) {
 const Bulletin = (() => {
   const DAY = 86400;
   const weekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime() / 1000; };
+  // the challenge lasts a week or a month, per profile (Settings → Bulletin); the rest of the magazine stays weekly
+  let period = "week";
+  const periodStart = () => { if (period !== "month") return weekStart(); const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).getTime() / 1000; };
+  const word = () => period === "month" ? "month" : "week";
   const rng = (seed) => { let a = 0; for (const c of String(seed)) a = (a * 31 + c.charCodeAt(0)) >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   const shuffle = (list, r) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   let srv;                     // this profile's challenge, as the computer keeps it (shared with its phones)
@@ -547,7 +697,7 @@ const Bulletin = (() => {
     return [f, Wheel.status(f)[0] === "now" ? "finish" : "start"];
   }
   function challenge(reroll = false) {
-    const wk = weekStart(), cur = load();
+    const wk = periodStart(), cur = load();
     const ci = cur && S.items.find((i) => i.id === cur.id);
     if (cur && cur.week === wk && !reroll && ci && (cur.type === "revisit" || Wheel.status(ci)[0] === "done" || firstUnread(ci) === ci)) return cur;
     const r = rng(wk + ":" + ((cur && cur.week === wk ? cur.draw : 0) + (reroll ? 1 : 0)));
@@ -572,7 +722,8 @@ const Bulletin = (() => {
      picks, the things on your shelves you haven't opened yet, and the papers waiting to be read */
   function render(lib, tabs) {
     if (srv === undefined) {
-      return api.get("/api/bulletin").then((b) => {
+      return Promise.all([api.get("/api/bulletin"), api.get("/api/bulletin/period").catch(() => ({}))]).then(([b, p]) => {
+        if (p && p.period) period = p.period;
         srv = b && b.week ? b : null; srvAt = Date.now();
         if (!srv && (typeof Profiles === "undefined" || Profiles.current() === 1)) {        // (from before profiles)
           try { srv = JSON.parse(localStorage.getItem("inkwell-challenge") || "null"); } catch (e) {}
@@ -587,7 +738,7 @@ const Bulletin = (() => {
       ago: Math.round((Date.now() / 1000 - finishedAt(it)) / (30 * DAY)), by: [Wheel.kindName(it), authorLine(it), it.year].filter(Boolean).join(" · ") } : null;
     const act = (x) => x.ok ? "" : `<button class="btn primary" data-read="${x.it.id}">${VIDEO_KINDS.includes(x.it.kind) ? "▶ Watch it" : x.finish ? "Finish it" : x.start ? "Start it" : "Read it again"}</button>`;
     const hook = (x) => x.ok ? (x.finish ? "Done and dusted. Challenge complete." : "Revisited. Challenge complete.")
-      : x.finish ? `${x.p}% read. One week to cross the finish line.` : x.start ? "Still in the wrapper. This is the week to open it." : `Last read ${x.ago} months ago. Time for a second look?`;
+      : x.finish ? `${x.p}% read. One ${word()} to cross the finish line.` : x.start ? `Still in the wrapper. This is the ${word()} to open it.` : `Last read ${x.ago} months ago. Time for a second look?`;
     const head = (x) => x.ok ? "MISSION ACCOMPLISHED" : x.finish ? "THE FINAL STRETCH" : x.start ? "FIRST PAGE" : "THE RETURN";
     lib.innerHTML = `<div class="vw hw bt-wrap"><div class="bt btx btx-mag">
       <section class="btm-cover ${ch && ch.ok ? "done" : ""}">${ch ? `<div class="btm-bg">${coverHTML(ch.it)}</div>` : ""}
@@ -596,11 +747,11 @@ const Bulletin = (() => {
         <div class="btm-ribbon">EXCLUSIVE</div>
         ${ch ? `<div class="btm-burst">${ch.ok ? "DONE!" : ch.finish ? `${ch.p}%<small>there</small>` : ch.start ? "NEW!" : "AGAIN?"}</div>
         <div class="btm-hero" data-detail="${ch.it.id}">${coverHTML(ch.it)}${ch.ok ? `<span class="bt-stamp">✓<b>Done!</b></span>` : ""}</div>
-        <div class="btm-lines"><small>${ch.finish ? "THIS WEEK'S CHALLENGE" : ch.start ? "THE DEBUT ISSUE" : "THE REVISIT ISSUE"}</small><em>${head(ch)}</em><h2>${esc(Wheel.title(ch.it))}</h2>
+        <div class="btm-lines"><small>${ch.finish ? `THIS ${word().toUpperCase()}'S CHALLENGE` : ch.start ? "THE DEBUT ISSUE" : "THE REVISIT ISSUE"}</small><em>${head(ch)}</em><h2>${esc(Wheel.title(ch.it))}</h2>
           <p class="btm-by">${esc(ch.by)}</p><p class="btm-hook">${esc(hook(ch))}</p>
           ${ch.finish && !ch.ok ? `<div class="btm-meter"><i style="width:${ch.p}%"></i></div>` : ""}
           <div class="d-actions">${act(ch)}<button class="btn" data-bt-reroll>Pick another</button></div></div>`
-        : `<div class="btm-lines"><em>COMING SOON</em><h2>Your next obsession</h2><p class="btm-hook">Start something and next week's challenge will be to finish it.</p></div>`}
+        : `<div class="btm-lines"><em>COMING SOON</em><h2>Your next obsession</h2><p class="btm-hook">Start something and next ${word()}'s challenge will be to finish it.</p></div>`}
         <figure class="btm-potd" id="btPotd" hidden></figure>
         <div class="btm-barcode"><i></i><span>0 ${String(issue).padStart(5, "0")} 42</span></div></section>
       <section class="btm-sec btm-hot"><header><small>FROM THE CATALOGUE</small><h3>Hot Off the Press</h3><p>This week's most talked-about finds you don't own yet</p></header>
@@ -702,7 +853,16 @@ const Bulletin = (() => {
       catch (err) { toast(err.message, "error"); }
     }
   });
-  return { render };
+  // Settings → Bulletin: switch this profile's challenge between weekly and monthly
+  async function setPeriod(p) {
+    const r = await api.send("POST", "/api/bulletin/period", { period: p });
+    period = r.period || p;
+    return period;
+  }
+  const getPeriod = () => api.get("/api/bulletin/period").then((r) => (period = r.period || "week")).catch(() => period);
+  // (for the sleep screen) this week's challenge, while it isn't done yet
+  const current = () => { const c = challenge(), it = c && S.items.find((i) => i.id === c.id); return it && !done(c, it) ? { type: c.type, title: it.title } : null; };
+  return { render, setPeriod, getPeriod, current };
 })();
 
 /* Home: the TV & Movies wheel for everything you're in the middle of. Cards fan out down the left (mouse wheel, arrow
@@ -725,6 +885,7 @@ const Wheel = {
     const j = Journal.statusOf ? Journal.statusOf(it) : "", p = pctOf(it);
     if (j === "hold") return ["hold", "On hold"];
     if (j === "dropped") return ["dropped", "Dropped"];
+    if (j === "next" && p < 98 && !it.watched) return ["next", "Up next"];
     if (VIDEO_KINDS.includes(it.kind)) return it.watched || p >= 98 ? ["done", "Watched"] : p > 0 ? ["now", "Now showing"] : ["new", "Not started"];
     if (j === "finished" || p >= 98) return ["done", "Finished"];
     if (j === "reading" || p > 0) return ["now", "Reading"];
@@ -880,6 +1041,7 @@ const Wheel = {
 function renderLib() {
   const lib = $("#library");
   document.body.classList.toggle("is-home", !!S.home);
+  document.body.dataset.gArea = S.home ? "home" : S.area;        // (the Galaxy theme gives each part of the library its own sky)
   paintFicTabs();
   paintShowSelects();
   if (S.home) { document.body.classList.remove("area-media", "area-journal", "area-video"); $$("#areaSeg button").forEach((b) => b.classList.remove("on")); return renderHome(lib); }
@@ -910,8 +1072,10 @@ function renderLib() {
     return;
   }
   const filterNote = S.tag ? `<p class="hint">Showing items tagged “${esc(S.tag)}”. <button class="btn sm" data-action="clear">Show everything</button></p>` : "";
-  lib.innerHTML = filterNote + VIEWS[S.view](groups);
+  lib.innerHTML = filterNote + (VIEWS[S.view] || VIEWS.heist)(groups);
+  lib.dataset.layout = S.view;
   if (S.view === "heist") renderStage();
+  if (S.view === "stars" && window.Sky) Sky.mount($("#skyRoot"), groups);
   queueCovers();
 }
 
@@ -982,7 +1146,9 @@ async function loadItems() {
   const text = await r.text();
   if (text === S._itemsText && !S._forceRender) return;  // nothing changed: don't rebuild the page
   S._itemsText = text; S._forceRender = false;
-  S.items = JSON.parse(text);
+  const all = JSON.parse(text);
+  S.copies = all.filter(isReadingCopy);            // (a paper's reading copy is one of its versions, not a book of its own)
+  S.items = all.filter((i) => !isReadingCopy(i));
   for (const it of S.items) { const p = prev.get(it.id); if (p) { it._coverTried = p._coverTried; it._cv = p._cv; } }
   $(".brand-name").dataset.cycle = String(S.items.length).padStart(3, "0");
   render();
@@ -995,6 +1161,21 @@ const F = (name, label, val, cls = "", type = "text") => `<label class="${cls}">
 
 const opts = (list, cur, blank) => (blank !== undefined ? `<option value="">${esc(blank)}</option>` : "") +
   [...new Set([...(cur && !list.includes(cur) ? [cur] : []), ...list])].map((g) => `<option ${g === cur ? "selected" : ""}>${esc(g)}</option>`).join("");
+
+const isReadingCopy = (it) => String(it?.source || "").startsWith("reading-copy:");
+
+/* finished by hand: the journal's status and the reading progress together, so every badge and list agrees */
+const isFinished = (it) => jstat(it) === "finished" || it.progress >= 0.97;
+async function toggleFinished(it) {
+  const was = isFinished(it), today = new Date().toLocaleDateString("en-CA");
+  await api.send("POST", `/api/items/${it.id}/log`, was ? { status: "", finished: "" } : { status: "finished", finished: today });
+  if (was ? it.progress >= 0.97 : true) await api.send("PATCH", `/api/items/${it.id}`, { progress: was ? 0 : 1 });
+  if (typeof Journal !== "undefined") await Journal.load();
+  await loadItems();
+  toast(was ? "No longer marked finished" : "Marked finished");
+  const now = S.items.find((x) => x.id === it.id);
+  if (now) Object.assign(it, now);
+}
 
 async function openDrawer(id, quiet = false) {
   S.openId = id;
@@ -1026,7 +1207,10 @@ async function openDrawer(id, quiet = false) {
       ${["book", "graphic"].includes(it.kind) && !it.has_cover ? `<button class="btn" id="dPullCover" title="Find this book's cover online (Hardcover, then Wikipedia and other catalogues)">Pull cover</button>` : ""}
       ${["book", "graphic"].includes(it.kind) && (S.settings.hardcover_token || "").trim() ? `<button class="btn" id="dHardcover" title="Replace the synopsis, authors, genre, series and year with Hardcover's">Pull info from Hardcover</button>` : ""}
       ${it.has_file && it.kind !== "music" ? `<button class="btn" id="dToPhone" title="Your phone fetches this file the next time its Babel's Library app syncs">📱 Send to phone</button>` : ""}
+      <button class="btn" id="dCork" title="Pin this to the corkboard">📌 Corkboard</button>
       ${typeof Profiles !== "undefined" ? Profiles.drawerToggle(it) : ""}
+      ${!isVideo && it.kind !== "music" ? `<button class="btn" id="dFinished" title="Mark this as finished, or not">${isFinished(it) ? "✓ Finished" : "Mark finished"}</button>` : ""}
+      ${it.file_type === "pdf" && it.has_file && it.kind !== "graphic" ? `<button class="btn" id="dReading" title="An EPUB of this paper that reflows on small screens, with figures and tables at the end">📖 ${(S.copies || []).some((x) => x.source === `reading-copy:${it.id}`) ? "Open reading copy" : "Make reading copy"}</button>${(S.copies || []).some((x) => x.source === `reading-copy:${it.id}`) ? `<button class="btn" id="dReadingAgain">Make it again</button>` : ""}` : ""}
       <button class="btn" id="dReanalyze">Re-sort and re-tag</button>
       <button class="btn danger" id="dDelete">Remove</button>
     </div>
@@ -1035,7 +1219,7 @@ async function openDrawer(id, quiet = false) {
       <form class="row" id="dFilmForm"><input name="q" value="${esc([it.title, it.year].filter(Boolean).join(" "))}" placeholder="Film name (and year)" style="flex:1"><button class="btn sm primary">Search</button></form>
       <ul class="film-hits" id="dFilmHits"></ul></div>` : ""}
     ${["epub", "pdf"].includes(it.file_type) && it.has_file ? `<div class="d-sec d-audio" id="dAudio" data-id="${it.id}"></div>` : ""}
-    ${["book", "graphic", "movie", "tv"].includes(it.kind) ? `<div class="d-sec d-journal" id="dJournal" data-id="${it.id}"></div>` : ""}
+    ${["book", "graphic", "movie", "tv", "article"].includes(it.kind) ? `<div class="d-sec d-journal" id="dJournal" data-id="${it.id}"></div>` : ""}
     <div class="d-confirm" id="dConfirm" hidden>
       <span>Remove “${esc(it.title || "Untitled")}” from Babel's Library?</span>
       <div class="row wrap"><button class="btn" id="dRmKeep">Remove, keep the file</button>${it.has_file ? `<button class="btn danger" id="dRmFile">Remove and delete the file</button>` : ""}<button class="btn" id="dRmCancel">Cancel</button></div>
@@ -1161,6 +1345,7 @@ async function openDrawer(id, quiet = false) {
       } catch (err) { toast(err.message, "error"); $$(".film-hit", $("#dFilmHits")).forEach((x) => { x.disabled = false; }); b.classList.remove("picked"); }
     };
   }
+  if ($("#dCork")) $("#dCork").onclick = async () => { const c = await Cork.pin({ type: "media", item_id: it.id }); if (c) toast(`📌 “${it.title}” is on the corkboard`); };
   if ($("#dToPhone")) $("#dToPhone").onclick = async (e) => {
     const b = e.currentTarget;
     try {
@@ -1187,6 +1372,8 @@ async function openDrawer(id, quiet = false) {
       await loadItems(); openDrawer(id, true);
     } catch (err) { toast(err.message, "error"); e.target.disabled = false; e.target.textContent = "Pull info from Hardcover"; }
   };
+  if ($("#dFinished")) $("#dFinished").onclick = async () => { await toggleFinished(it); openDrawer(id, true); };
+  if ($("#dReading")) { $("#dReading").onclick = () => { closeDrawer(); openReadingCopy(it); }; if ($("#dReadingAgain")) $("#dReadingAgain").onclick = () => { closeDrawer(); openReadingCopy(it, true); }; }
   $("#dReanalyze").onclick = async () => { await api.send("POST", `/api/items/${id}/reanalyze`); toast("Re-sorting… (your own edits are kept)"); await loadItems(); openDrawer(id, true); };
   $("#dDelete").onclick = () => { $("#dConfirm").hidden = false; $("#dConfirm").scrollIntoView({ block: "nearest" }); };
   $("#dRmCancel").onclick = () => { $("#dConfirm").hidden = true; };
@@ -1394,6 +1581,14 @@ async function openSettings() {
     ? `<span class="dot"></span><b>Local AI connected.</b> Ollama is running with ${models.length} model${models.length === 1 ? "" : "s"}. New items are read and tagged by the model you pick below, entirely on this computer.`
     : `<span class="dot off"></span><b>Using the built-in analyser.</b> It works offline but is less accurate. For smarter, still-offline tagging, install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> and run <code>ollama pull llama3.2</code>, then reopen Settings.`;
   updateBibLink();
+  Bulletin.getPeriod().then((p) => { $("#bulletinPeriod").value = p; });
+  $("#bulletinPeriod").onchange = async (e) => {
+    try {
+      const p = await Bulletin.setPeriod(e.target.value);
+      toast(p === "month" ? "The Bulletin's challenge now lasts a month" : "The Bulletin's challenge now lasts a week");
+      if (S.home && $("#library")) render();
+    } catch (err) { toast(err.message, "error"); }
+  };
   $("#settingsDialog").showModal();
 }
 function updateBibLink() { $("#bibLink").href = "/api/export/citations?style=" + encodeURIComponent($("#bibStyle").value); }
@@ -1537,19 +1732,34 @@ function bind() {
   $("#moveFolder").oninput = () => { clearTimeout(S.moveTimer); $("#moveGo").disabled = true; S.moveTimer = setTimeout(planMove, 400); };
   $("#moveGo").onclick = startMove;
   $("#viewSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; setView(b.dataset.view); };
+  {  // the layout picker: an icon that opens the list of layouts
+    const btn = $("#layoutBtn"), menu = $("#layoutMenu");
+    const shut = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+    btn.onclick = (e) => { e.stopPropagation(); const open = menu.hidden; menu.hidden = !open; btn.setAttribute("aria-expanded", String(open));
+      $$("#layoutMenu [data-layout]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.layout === S.view))); };
+    menu.onclick = (e) => { const b = e.target.closest("[data-layout]"); if (!b) return; shut(); setView(b.dataset.layout); };
+    // the table's column headings sort it (again: the other way)
+    document.addEventListener("click", (e) => { const h = e.target.closest("[data-tsort]"); if (!h) return; const k = h.dataset.tsort;
+      S.tableDir = S.tableSort === k ? -(S.tableDir || 1) : 1; S.tableSort = k; render(); });
+    document.addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest("#layoutCtl")) shut(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) shut(); });
+  }
   Wheel.bind();
   $("#journalBtn").onclick = () => ($("#jbModal.open") ? Journal.close() : Journal.openHere());
   // the top bar stays one row: tighten it a step at a time until it fits (and loosen it again when there's room)
   const fitTopbar = () => {
     const t = $(".topbar");
-    t.classList.remove("tight", "tighter", "tightest", "cramped");
-    for (const c of ["tight", "tighter", "tightest", "cramped"]) { if (t.scrollWidth <= t.clientWidth + 1) break; t.classList.add(c); }
+    t.classList.remove("tight", "tighter", "tightest", "cramped", "wrapped");
+    // (the last step, for a narrow window or the right half of split screen: a second row rather than running off the edge)
+    for (const c of ["tight", "tighter", "tightest", "cramped", "wrapped"]) { if (t.scrollWidth <= t.clientWidth + 1) break; t.classList.add(c); }
   };
   new ResizeObserver(fitTopbar).observe($(".topbar"));
+  window.fitTopbar = () => requestAnimationFrame(fitTopbar);      // (the reader's split screen calls it: the bar gets the right half)
   new MutationObserver(() => requestAnimationFrame(fitTopbar)).observe($(".topbar"), { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
   document.addEventListener("click", () => setTimeout(fitTopbar, 50));       // (the bar's contents change with what you click)
   $("#discoverBtn").onclick = () => { catalogueSeen(); Discover.open(); };
   $("#newsBtn").onclick = () => News.open();
+  $("#corkBtn").onclick = () => Cork.toggle();
   watchCatalogue();
   // the browser opens inside this window (inbrowser.js); without the desktop app, in your own web browser
   $("#browserBtn").onclick = () => S.desktopMode === "native" ? Browser.toggle() : fetch("/api/browser/open", { method: "POST", headers: { "X-Babel": "1", "Content-Type": "application/json" }, body: "{}" })
@@ -1779,7 +1989,9 @@ function setArea(a) {
   $("#kindSeg").innerHTML = `<button data-kind="all" class="on">All</button>` + tabs.map(([k, l]) => `<button data-kind="${k}">${l}</button>`).join("");
   $("#kindSeg").hidden = tabs.length < 2;
   paintGroups(a);
-  $("#viewSeg").hidden = true;   // Cards is the only view now
+  $("#viewSeg").hidden = true;   // (replaced by the Layout menu)
+  $("#layoutCtl").hidden = !READ_AREAS.includes(a);
+  if (READ_AREAS.includes(a)) { S.view = layoutFor(a); layoutTitle(); }
   $("#search").placeholder = a === "articles" ? "Search articles, authors, journals, tags…" : a === "books" ? "Search books, authors, series…" : a === "music" ? "Search songs, albums, artists…" : a === "video" ? "Search shows and films…" : a === "journal" ? "Search your journal…" : "Search titles, authors, tags…";
   try { localStorage.setItem("inkwell-area", a); } catch (e) {}
   closeDrawer();
@@ -1829,8 +2041,14 @@ async function startMove() {
   } catch (err) { $("#movePlan").textContent = err.message; }
 }
 
+function layoutTitle() {
+  const b = document.querySelector(`#layoutMenu [data-layout="${S.view}"]`);
+  $("#layoutBtn").title = "Layout: " + (b ? b.lastChild.textContent.trim() : "Cards");
+}
 function setView(v) {
-  S.view = v;
+  S.view = LAYOUTS.includes(v) ? v : "heist";
+  if (READ_AREAS.includes(S.area)) layoutTitle();
+  try { localStorage.setItem("inkwell-layout-" + S.area, S.view); } catch (e) {}
   $$("#viewSeg button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
   savePrefs();
   render();
@@ -1852,6 +2070,7 @@ function savePrefs() {
   $("#groupBy").value = S.groupBy; $("#sortBy").value = S.sortBy;
   $$("#viewSeg button").forEach((b) => b.classList.toggle("on", b.dataset.view === S.view));
   TAX = await api.get("/api/genres").catch(() => TAX);
+  if (document.readyState === "loading") await new Promise((r) => document.addEventListener("DOMContentLoaded", r));   // (the scripts after this one)
   bind();
   let area = "books"; try { area = localStorage.getItem("inkwell-area") || "books"; } catch (e) {}
   setArea(area);

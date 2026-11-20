@@ -7,8 +7,10 @@
 <link rel="icon" href="icon.png">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/themes.css">
-<script>try{var t=localStorage.getItem('inkwell-theme');document.documentElement.dataset.theme=['gruvbox'].indexOf(t)>=0?t:'wordtown'}catch(e){}
-addEventListener('storage',function(e){if(e.key==='inkwell-theme')document.documentElement.dataset.theme=['gruvbox'].indexOf(e.newValue)>=0?e.newValue:'wordtown'});</script>
+<link rel="stylesheet" href="css/galaxy.gen.css">
+<link rel="stylesheet" href="css/galaxy.css">
+<script>try{var t=localStorage.getItem('inkwell-theme');document.documentElement.dataset.theme=['gruvbox','galaxy'].indexOf(t)>=0?t:'wordtown'}catch(e){}
+addEventListener('storage',function(e){if(e.key==='inkwell-theme')document.documentElement.dataset.theme=['gruvbox','galaxy'].indexOf(e.newValue)>=0?e.newValue:'wordtown'});</script>
 <style>
   body{overflow:auto}
   .bw{max-width:980px;margin:0 auto;padding:28px 20px 60px}

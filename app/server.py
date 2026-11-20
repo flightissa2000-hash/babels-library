@@ -11,6 +11,7 @@ import re
 import shutil
 import sqlite3
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -39,6 +40,7 @@ import importers  # noqa: E402
 import devices  # noqa: E402
 import series  # noqa: E402
 import journal  # noqa: E402
+import corkboard  # noqa: E402
 import discover  # noqa: E402
 import media_catalog  # noqa: E402
 import extract  # noqa: E402
@@ -248,6 +250,37 @@ def _last_name(it):
     return a[-1].lower() if a else ""
 
 
+def _core_title(it, other=None):
+    """The book's own title, without the series and book number shops and files add:
+    'Dungeon Crawler Carl: Dungeon Crawler Carl Book 1' and 'Dungeon Crawler Carl' -> 'dungeon crawler carl'."""
+    t = journal.norm(extract.series_from_title(it.get("title") or "")[0])
+    t = re.sub(r"\b(?:book|bk|vol|volume|part|no|number)\s*\d+(?:\s*\d+)?\b", " ", t)
+    for ser in {journal.norm(x.get("series") or "") for x in (it, other or {})}:    # (either entry may know the series)
+        if ser and len(ser) > 3 and ser in t:
+            rest = re.sub(r"\s+", " ", re.sub(r"\b" + re.escape(ser) + r"\b", " ", t)).strip()
+            t = rest if rest else ser
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _same_book(o, it):
+    """two entries for one book: same author (when both have one), never two different volumes"""
+    if _last_name(o) and _last_name(it) and _last_name(o) != _last_name(it):
+        return False
+    oi, ii = o.get("series_index"), it.get("series_index")
+    if oi not in (None, "") and ii not in (None, "") and float(oi) != float(ii):
+        return False                    # (a different volume of the same series)
+    if it.get("isbn") and str(o.get("isbn") or "").replace("-", "") == str(it["isbn"]).replace("-", ""):
+        return True
+    key = journal.norm(it.get("title") or "")
+    if len(key) > 3 and journal.norm(o.get("title") or "") == key:
+        return True
+    a, b = _core_title(o, it), _core_title(it, o)
+    if len(a) > 3 and a == b:
+        return True
+    os_, is_ = journal.norm(o.get("series") or ""), journal.norm(it.get("series") or "")
+    return bool(os_) and os_ == is_ and oi not in (None, "") and ii not in (None, "")
+
+
 def merge_copies(item_id):
     """A file for a book (or comic) you already have on the shelf as a physical copy, or on your wishlist: the file
     joins that entry (its journal, notes, collections and place stay together) instead of making a second one.
@@ -255,21 +288,29 @@ def merge_copies(item_id):
     it = store.get_item(item_id)
     if not it or not it.get("has_file") or it["kind"] not in ("book", "graphic"):
         return item_id
-    key = journal.norm(it.get("title") or "")
     for o in store.list_items():
         if o["id"] == item_id or o.get("has_file") or o["kind"] != it["kind"] or not (o.get("physical") or o.get("wanted")):
             continue
-        same_isbn = bool(it.get("isbn")) and str(o.get("isbn") or "").replace("-", "") == str(it["isbn"]).replace("-", "")
-        same_title = len(key) > 3 and journal.norm(o.get("title") or "") == key and (not _last_name(o) or not _last_name(it) or _last_name(o) == _last_name(it))
         if it.get("kind") == "graphic" and (o.get("series_index") or it.get("series_index")) and o.get("series_index") != it.get("series_index"):
             continue                    # (a different volume of the same series)
-        if not (same_isbn or same_title):
+        if not _same_book(o, it):
             continue
         raw = store.get_item(item_id, raw=True)
         fields = {k: raw.get(k) for k in ("file_path", "file_type", "sha256", "orig_name") if raw.get(k) is not None}
         for k in ("summary", "isbn", "publisher", "year", "genre", "series", "series_index", "format", "direction", "subject", "fiction"):
             if o.get(k) in (None, "", []) and it.get(k) not in (None, "", []):
                 fields[k] = it[k]
+        for k in ("progress", "last_location", "opened_at", "favorite"):     # (where you'd got to in the file, if anywhere)
+            if not o.get(k) and raw.get(k):
+                fields[k] = raw[k]
+        store.move_item_refs(item_id, o["id"])
+        if not fields.get("progress") and not o.get("progress"):
+            try:   # finished in the journal: the copy is read to the end, as marking it finished would have set
+                done = store._db.execute("SELECT 1 FROM media_log WHERE item_id=? AND status='finished' AND profile_id=1 LIMIT 1", (o["id"],)).fetchone()
+                if done:
+                    fields["progress"] = 1.0
+            except Exception:
+                pass
         if o.get("wanted"):
             fields["wanted"] = 0        # (the wishlist entry: you have it now)
         old_raw = store.get_item(o["id"], raw=True)
@@ -802,6 +843,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         self._dispatch("DELETE")
 
+    def do_PUT(self):
+        self._dispatch("PUT")
+
     def static(self, path):
         if path == "/":
             path = "/index.html"
@@ -1043,6 +1087,120 @@ def r_bulletin_set(h):
     h._send(200, {"ok": True})
 
 
+# ---- the corkboard (corkboard.py): the board on screen, pinning from anywhere, saved boards, pictures
+@route("GET", r"/api/corkboard")
+def r_cork_get(h):
+    h._send(200, corkboard.current())
+
+
+@route("PUT", r"/api/corkboard")
+def r_cork_put(h):
+    d = h.json_body()
+    h._send(200, {"ok": True, "updated_at": corkboard.save_current(d.get("board") or {}, d.get("loaded_at"))["updated_at"]})
+
+
+@route("POST", r"/api/corkboard/add")
+def r_cork_add(h):
+    d = h.json_body()
+    if d.get("type") == "media" and d.get("item_id"):
+        it = store.get_item(int(d["item_id"]))
+        if not it:
+            raise LookupError("Not found.")
+        d = {"type": "media", "item_id": it["id"], "title": it.get("title") or "", "kind": it.get("kind") or "",
+             "author": ", ".join(it.get("authors") or [])[:200], **{k: v for k, v in d.items() if k in ("x", "y")}}
+    h._send(200, corkboard.add(d))
+
+
+@route("POST", r"/api/corkboard/clear")
+def r_cork_clear(h):
+    h._send(200, corkboard.clear())
+
+
+@route("GET", r"/api/corkboards")
+def r_corks(h):
+    h._send(200, corkboard.saved())
+
+
+@route("POST", r"/api/corkboards")
+def r_cork_save(h):
+    d = h.json_body()
+    h._send(200, corkboard.save_as(d.get("name"), d.get("board")))
+
+
+@route("POST", r"/api/corkboards/([0-9a-f]+)/open")
+def r_cork_open(h, sid):
+    h._send(200, corkboard.open_saved(sid))
+
+
+@route("DELETE", r"/api/corkboards/([0-9a-f]+)")
+def r_cork_del(h, sid):
+    corkboard.delete_saved(sid)
+    h._send(200, corkboard.saved())
+
+
+@route("POST", r"/api/corkboard/media")
+def r_cork_media(h):
+    data = h.raw_body()
+    ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".gif" if data[:4] == b"GIF8" else ".webp" if data[8:12] == b"WEBP" else ".png"
+    h._send(200, {"url": corkboard.save_media(data, ext)})
+
+
+@route("GET", r"/api/corkboard/media/([0-9a-f]+\.(?:png|jpg|jpeg|gif|webp))")
+def r_cork_media_get(h, name):
+    path = os.path.join(corkboard.media_dir(), name)
+    if not os.path.exists(path):
+        return h._send(404, {"error": "not found"})
+    h.send_file(path, mimetypes.guess_type(path)[0] or "image/png", cache="private, max-age=31536000, immutable")
+
+
+def bulletin_period(pid=None):
+    """How long a profile's Bulletin challenge lasts: "week" (from Monday) or "month" (from the 1st)."""
+    pid = store.viewer() if pid is None else pid
+    return (store.get_settings().get("bulletin_period") or {}).get(str(pid)) or "week"
+
+
+@route("GET", r"/api/bulletin/period")
+def r_bulletin_period_get(h):
+    h._send(200, {"period": bulletin_period()})
+
+
+@route("POST", r"/api/bulletin/period")
+def r_bulletin_period_set(h):
+    p = str(h.json_body().get("period") or "")
+    if p not in ("week", "month"):
+        raise ValueError("The challenge lasts a week or a month.")
+    allp = dict(store.get_settings().get("bulletin_period") or {})
+    allp[str(store.viewer())] = p
+    store.set_settings({"bulletin_period": allp})
+    h._send(200, {"period": p})
+
+
+# ---- each profile's website time limits (its phones' browsers keep to them; set on any of its phones)
+@route("GET", r"/api/sitelimits")
+def r_sitelimits_get(h):
+    h._send(200, {"limits": (store.get_settings().get("site_limits") or {}).get(str(store.viewer()))})
+
+
+@route("POST", r"/api/sitelimits")
+def r_sitelimits_set(h):
+    raw = h.json_body().get("limits") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("limits: {site: minutes}")
+    clean = {}
+    for k, v in raw.items():
+        site = re.sub(r"^(www|m|mobile)\.", "", re.sub(r"^[a-z]+://", "", str(k).strip().lower()).split("/")[0].split(":")[0])
+        try:
+            m = int(v)
+        except (TypeError, ValueError):
+            continue
+        if site and 0 < m <= 24 * 60:
+            clean[site] = m
+    allp = dict(store.get_settings().get("site_limits") or {})
+    allp[str(store.viewer())] = clean
+    store.set_settings({"site_limits": allp})
+    h._send(200, {"limits": clean})
+
+
 @route("DELETE", r"/api/items/(\d+)")
 def r_delete(h, iid):
     if h.query.get("delete_file") == "1":
@@ -1056,6 +1214,206 @@ def r_reanalyze(h, iid):
     store.update_item(int(iid), {"status": "analyzing"})
     threading.Thread(target=analyze_item, args=(int(iid), False), daemon=True).start()
     h._send(200, {"ok": True})
+
+
+# ---- reading copies: a paper's PDF as an EPUB for small screens (readingcopy.py). The copy is a library item of its own
+READING = {}                    # item id → how making its copy is going
+_reading_lock = threading.Lock()
+COPY_FIELDS = ("authors", "year", "publisher", "journal", "volume", "issue", "pages", "genre", "subject", "fiction", "topic", "tags", "summary", "cover_path", "private_to")
+
+
+def reading_copy_of(iid):
+    tag = f"reading-copy:{iid}"
+    return next((i for i in store.list_items() if i.get("source") == tag and i.get("has_file")), None)
+
+
+_CONVERT = r"""
+import json, sys
+import readingcopy
+src, out, title, author = json.loads(sys.argv[1])
+rep = readingcopy.convert(src, out, title=title, author=author, progress=lambda n, t: print("P", n, t, flush=True))
+print("R", json.dumps(rep), flush=True)
+"""
+
+
+def _convert_apart(src, out, title, author, state):
+    """The converter in a process of its own: drawing a big page holds Python up for a long time, and in here that
+    would stop the whole app (the window, phones) until it's done."""
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([here, os.path.join(here, "vendor_py")]), PYTHONIOENCODING="utf-8")
+    errf = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
+    proc = subprocess.Popen([sys.executable, "-c", _CONVERT, json.dumps([src, out, title, author])], cwd=here, env=env,
+                            stdout=subprocess.PIPE, stderr=errf, text=True, encoding="utf-8", errors="replace",
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    report = None
+    for line in proc.stdout:
+        if line.startswith("P "):
+            try:
+                _, n, t = line.split()
+                state.update(page=int(n), pages=int(t))
+            except ValueError:
+                pass
+        elif line.startswith("R "):
+            report = json.loads(line[2:])
+    proc.wait()
+    errf.seek(0)
+    err = errf.read()
+    errf.close()
+    if proc.returncode or report is None:
+        raise RuntimeError((err.strip().splitlines() or ["This PDF couldn't be converted."])[-1])
+    return report
+
+
+def copy_stale(copy):
+    """Was this reading copy made by an older converter than the one installed?"""
+    import readingcopy
+    try:
+        path = store.get_item(copy["id"], raw=True)["file_path"]
+        return os.path.isfile(path) and (readingcopy.outdated(path) if hasattr(readingcopy, "outdated") else readingcopy.made_by(path) < readingcopy.VERSION)
+    except Exception:
+        return False
+
+
+def _move_marks(copy_id, old_path, new_path):
+    """A remade copy's text is laid out anew: its notes, highlights, bookmarks and reading places (every profile's)
+    are moved to the same words in it."""
+    import copyanchor
+    mv = copyanchor.Mover(old_path, new_path)
+    moved = lost = 0
+    with store._lock:
+        anns = [dict(r) for r in store._db.execute("SELECT id, quote, locator FROM annotations WHERE item_id=?", (copy_id,))]
+        places = [dict(r) for r in store._db.execute("SELECT profile_id, field, value FROM profile_progress WHERE item_id=? AND field='last_location'", (copy_id,))]
+        mine = store._db.execute("SELECT last_location FROM items WHERE id=?", (copy_id,)).fetchone()
+    for a in anns:
+        try:
+            loc = json.loads(a["locator"] or "{}")
+        except Exception:
+            continue
+        if not str(loc.get("cfi") or "").startswith("epubcfi("):
+            continue
+        try:
+            new = mv.move(loc["cfi"], a.get("quote") or "")
+        except Exception:
+            new = None
+        if new and new != loc["cfi"]:
+            loc["cfi"] = new
+            store.update_annotation(a["id"], {"locator": loc})
+        moved += bool(new)
+        lost += not new
+    here = mine[0] if mine else None
+    if here and str(here).startswith("epubcfi("):
+        try:
+            new = mv.move(here)
+        except Exception:
+            new = None
+        if new and new != here:
+            with store._lock:
+                store._db.execute("UPDATE items SET last_location=?, updated_at=? WHERE id=?", (new, time.time(), copy_id))
+                store._db.execute("INSERT OR REPLACE INTO item_clock (item_id, field, ts) VALUES (?,?,?)", (copy_id, "last_location", time.time()))
+                store._db.commit()
+    for p in places:
+        try:
+            here = json.loads(p["value"]) if p["value"] else None
+            new = mv.move(here) if str(here or "").startswith("epubcfi(") else None
+        except Exception:
+            new = None
+        if new and new != here:
+            with store._lock:
+                store._db.execute("UPDATE profile_progress SET value=?, ts=? WHERE profile_id=? AND item_id=? AND field='last_location'",
+                                  (json.dumps(new), time.time(), p["profile_id"], copy_id))
+                store._db.commit()
+    return moved, lost
+
+
+def _make_reading_copy(iid):
+    state = READING[iid]
+    try:
+        import readingcopy
+        it = store.get_item(iid, raw=True)
+        src = it["file_path"]
+        old = reading_copy_of(iid)
+        tmp = tempfile.mkdtemp(prefix="babel-copy-")
+        try:
+            made = os.path.join(tmp, "copy.epub")
+            before = os.path.join(tmp, "before.epub")
+            with _reading_lock:
+                report = _convert_apart(src, made, it.get("title"), ", ".join(it.get("authors") or []) if isinstance(it.get("authors"), list) else None, state)
+            if old:
+                dest = store.get_item(old["id"], raw=True)["file_path"]
+                if os.path.isfile(dest):
+                    shutil.copy2(dest, before)
+            else:
+                stem =os.path.splitext(os.path.basename(src))[0]
+                dest = os.path.join(os.path.dirname(src), stem + " (reading copy).epub")
+                n = 2
+                while os.path.exists(dest):
+                    dest, n = os.path.join(os.path.dirname(src), f"{stem} (reading copy {n}).epub"), n + 1
+            files.safe_copy(made, dest)
+            sha = sha256_file(dest)
+            if old and os.path.isfile(before):
+                try:
+                    moved, lost = _move_marks(old["id"], before, dest)
+                    if moved or lost:
+                        state["marks"] = {"moved": moved, "lost": lost}
+                except Exception:
+                    traceback.print_exc()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        if old:
+            store.update_item(old["id"], {"sha256": sha, "status": "ready"})
+            state.update(state="done", copy=old["id"], report=report)
+        else:
+            raw = store.get_item(iid) or {}
+            data = {k: raw.get(k) for k in COPY_FIELDS if raw.get(k) not in (None, "", [])}
+            data.update(kind=it["kind"] if it["kind"] in ("article", "book") else "article", title=f"{it.get('title') or stem} (reading copy)", source=f"reading-copy:{iid}",
+                        file_path=dest, file_type="epub", sha256=sha, status="ready", orig_name=os.path.basename(dest))
+            new = store.create_item({k: v for k, v in data.items() if k in store.ITEM_FIELDS})
+            state.update(state="done", copy=new, report=report)
+        log(f"Made a reading copy of “{it.get('title')}”", "import", state["copy"])
+    except Exception as e:
+        print("[inkwell] reading copy not made:", e)
+        state.update(state="failed", error=str(e) or "This PDF couldn't be converted.")
+
+
+@route("POST", r"/api/items/(\d+)/reading-copy")
+def r_reading_copy(h, iid):
+    iid = int(iid)
+    it = store.get_item(iid)
+    if not it or it.get("file_type") != "pdf" or not it.get("has_file"):
+        return h._send(400, {"error": "Reading copies are made from PDFs in your library."})
+    if (READING.get(iid) or {}).get("state") != "making":
+        READING[iid] = {"state": "making", "page": 0, "pages": 0}
+        threading.Thread(target=_make_reading_copy, args=(iid,), daemon=True).start()
+    h._send(200, READING[iid])
+
+
+@route("GET", r"/api/items/(\d+)/reading-copy")
+def r_reading_copy_state(h, iid):
+    iid = int(iid)
+    done = reading_copy_of(iid)
+    st = READING.get(iid)
+    if not st or st.get("state") != "making":
+        st = dict(st or {}, **({"state": "done", "copy": done["id"], "stale": copy_stale(done)} if done else {"state": "none"}))
+    h._send(200, st)
+
+
+def refresh_reading_copies():
+    """Copies made by an older converter are made again, one at a time, in the background (their notes and places
+    moved over): every device then gets the better copy."""
+    for c in [i for i in store.list_items() if str(i.get("source") or "").startswith("reading-copy:") and i.get("has_file")]:
+        try:
+            iid = int(c["source"].split(":", 1)[1])
+            src = store.get_item(iid, raw=True)
+            if not src or not src.get("file_path") or not os.path.isfile(src["file_path"]) or not copy_stale(c):
+                continue
+            if (READING.get(iid) or {}).get("state") == "making":
+                continue
+            READING[iid] = {"state": "making", "page": 0, "pages": 0, "auto": True}
+            _make_reading_copy(iid)
+            print(f"[inkwell] reading copy of item {iid} made again with the new converter:", READING[iid].get("state"), READING[iid].get("marks") or "")
+        except Exception:
+            traceback.print_exc()
 
 
 @route("POST", r"/api/items/(\d+)/fill")
@@ -1105,6 +1463,44 @@ def r_cover_set(h, iid):
         f.write(data)
     store.update_item(int(iid), {"cover_path": name})
     h._send(200, {"ok": True})
+
+
+@route("POST", r"/api/items/(\d+)/coverpick")
+def r_cover_pick(h, iid):
+    """A cover chosen for an item (from the phone): a picture found by a search, a web address, or a photo."""
+    import base64
+    if not store.get_item(int(iid)):
+        return h._send(404, {"error": "not found"})
+    d = h.json_body()
+    raw = b""
+    if d.get("data"):
+        m = re.match(r"^data:image/[\w+.-]+;base64,(.+)$", d["data"], re.S)
+        raw = base64.b64decode(m.group(1)) if m else b""
+    else:
+        url = str(d.get("url") or "").strip()
+        if not re.match(r"^https?://", url):
+            raise ValueError("That isn't a web address.")
+        tries = [re.sub(r"/\d+px-", "/600px-", url, count=1), url] if "/thumb/" in url and re.search(r"/\d+px-", url) else [url]
+        for u in tries:
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "BabelsLibrary/1.0 (personal library app)"})
+                raw = urllib.request.urlopen(req, timeout=20).read(16 * 1024 * 1024)
+                if _image_kind(raw):
+                    break
+            except Exception:
+                raw = b""
+    kind = _image_kind(raw)
+    if not raw or len(raw) > 15 * 1024 * 1024 or not kind:
+        raise ValueError("That isn't a picture (or it's over 15 MB).")
+    ext = {"image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(kind, ".jpg")
+    name = f"{iid}-{int(time.time())}{ext}"           # (a new name: phones and the page see a new picture)
+    path = os.path.join(store.COVERS_DIR, name)
+    with open(path, "wb") as f:
+        f.write(raw)
+        f.flush()
+        os.fsync(f.fileno())
+    store.update_item(int(iid), {"cover_path": name})
+    h._send(200, {"ok": True, "item": store.get_item(int(iid))})
 
 
 @route("POST", r"/api/items/(\d+)/pullcover")
@@ -1954,7 +2350,18 @@ def r_log_cover_search(h):
             for c in media_catalog.search("tv" if kind == "show" else "movie", q, None, None) or []:
                 if c.get("cover"):
                     out.append({"title": c["title"], "sub": " · ".join(str(x) for x in (c.get("year"), c.get("blurb")) if x), "img": c["cover"]})
-        elif kind not in ("movie", "show", "game"):
+        elif kind in ("writing", "other"):      # a notebook page: any picture (Wikimedia Commons), then book covers
+            d = json.loads(lookup._get("https://commons.wikimedia.org/w/api.php?" + urllib.parse.urlencode({
+                "action": "query", "format": "json", "formatversion": 2, "generator": "search", "gsrnamespace": 6,
+                "gsrsearch": f"{q} filetype:bitmap", "gsrlimit": 24, "prop": "imageinfo", "iiprop": "url", "iiurlwidth": 400})))
+            for p in sorted((d.get("query") or {}).get("pages") or [], key=lambda x: x.get("index", 0)):
+                ii = (p.get("imageinfo") or [{}])[0]
+                if ii.get("thumburl"):
+                    out.append({"title": re.sub(r"^File:|\.\w+$", "", p["title"]).replace("_", " ")[:60], "sub": "Wikimedia Commons", "img": ii["thumburl"]})
+            for b in (discover.search(q, 12, None, None) or []) if len(out) < 8 else []:
+                if b.get("cover"):
+                    out.append({"title": b["title"], "sub": " · ".join(str(x) for x in (", ".join(b.get("authors") or []), b.get("year")) if x), "img": b["cover"].replace("-M.jpg", "-L.jpg")})
+        else:
             for b in discover.search(q, 24, None, None) or []:
                 if b.get("cover"):
                     out.append({"title": b["title"], "sub": " · ".join(str(x) for x in (", ".join(b.get("authors") or []), b.get("year")) if x), "img": b["cover"].replace("-M.jpg", "-L.jpg")})
@@ -2480,6 +2887,18 @@ def r_phone_send(h, iid):
     h._send(200, {"ok": True, "phones": n})
 
 
+@route("POST", r"/api/ereader/pair")
+def r_ereader_pair(h):
+    """An e-reader running Babel (the EEGO A4): its sign-in for the catalogue and KOReader sync (the password is
+    shown only now), and the addresses it can reach this computer at."""
+    import ereader
+    import phonesync
+    dev, tok = ereader.pair(str(h.json_body().get("name") or "E-reader"))
+    base = [f"http://{a}:{phonesync.PORT}" for a in phonesync.lan_addresses()]
+    h._send(200, {"id": dev["id"], "name": dev["name"], "user": ereader.USER, "password": tok,
+                  "opds": [b + "/opds" for b in base], "kosync": [b + "/kosync" for b in base]})
+
+
 @route("DELETE", r"/api/phone/devices/([\w-]+)")
 def r_phone_forget(h, dev):
     import phonesync
@@ -2652,6 +3071,62 @@ def r_desk_fs(h):
     if DESKTOP is not None:
         threading.Thread(target=DESKTOP.toggle_fullscreen, daemon=True).start()
     h._send(200, {"ok": DESKTOP is not None})
+
+
+# ---- the sleep screen (static/js/sleep.js): how long since you last touched the mouse or keyboard (anywhere,
+# including over a website in the in-app browser), whether a website there is playing sound, and Galaxy's photos
+def _idle_seconds():
+    if os.name != "nt":
+        return 0
+    import ctypes
+
+    class LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+    li = LASTINPUTINFO()
+    li.cbSize = ctypes.sizeof(li)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(li)):
+        return 0
+    return ((ctypes.windll.kernel32.GetTickCount() - li.dwTime) & 0xFFFFFFFF) / 1000.0
+
+
+@route("GET", r"/api/desktop/idle")
+def r_desk_idle(h):
+    playing = False
+    ia = getattr(DESKTOP, "inapp", None) if DESKTOP is not None else None
+    if ia is not None:
+        try:
+            playing = ia.playing()
+        except Exception as e:
+            print("[inkwell] idle: couldn't ask the browser if it's playing:", e)
+            playing = False
+    h._send(200, {"idle": round(_idle_seconds(), 1), "playing": playing, "fullscreen": bool(getattr(DESKTOP, "_fs", False))})
+
+
+@route("POST", r"/api/sleep/dim")
+def r_sleep_dim(h):
+    import dimmer
+    h._send(200, dimmer.dim())
+
+
+@route("POST", r"/api/sleep/undim")
+def r_sleep_undim(h):
+    import dimmer
+    h._send(200, dimmer.restore())
+
+
+@route("GET", r"/api/sleep/photos")
+def r_sleep_photos(h):
+    import spacephotos
+    h._send(200, spacephotos.listing())
+
+
+@route("GET", r"/api/sleep/photo/([A-Za-z0-9_-]+)")
+def r_sleep_photo(h, pid):
+    import spacephotos
+    f = spacephotos.path(pid)
+    if not f:
+        return h._send(404, {"error": "not here yet"})
+    h.send_file(f, "image/jpeg", cache="private, max-age=2592000")
 
 
 # ---- start with Windows (like Firefox's option): an entry in your sign-in list (HKCU ... Run). It runs a tiny
@@ -3240,6 +3715,7 @@ def start_background():
     threading.Thread(target=audiobook.reset_stale, daemon=True).start()
     discover.start_gatherer()        # the catalogue's contents are gathered in the background
     threading.Thread(target=lambda: (time.sleep(45), merge_all_copies()), daemon=True).start()   # (once)
+    threading.Thread(target=lambda: (time.sleep(90), refresh_reading_copies()), daemon=True).start()
     try:
         import news
         news.start_watching()        # and the Local desk's events, when you've asked to hear about new ones

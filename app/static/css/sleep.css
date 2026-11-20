@@ -1,0 +1,86 @@
+/* The sleep screen (static/js/sleep.js): over everything while Babel's Library sleeps, full screen, drawn per theme */
+#sleepScreen{position:fixed;inset:0;z-index:2147483000;overflow:hidden;opacity:0;visibility:hidden;transition:opacity .6s,visibility 0s .6s;cursor:none;user-select:none;
+  --bg:#0d1b3d;--ink:#fff4d6;--soft:#b9c6e6;--accent:#ffc93c;--surface:#1b2d5e;background:var(--bg);color:var(--ink);font-family:"Nunito",system-ui,sans-serif}
+#sleepScreen.on{opacity:1;visibility:visible;transition:opacity .9s}
+#sleepScreen *{box-sizing:border-box}
+.sl-scene{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.sl-card{position:absolute;left:50%;top:47%;width:min(80vw,660px);transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,0px)));transition:transform 6s ease-in-out;text-align:center;z-index:2}
+.sl-clock{font-size:clamp(5rem,13vw,11rem);line-height:.95;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sl-clock small{font-size:.24em;font-weight:700;margin-left:.15em;letter-spacing:.04em;opacity:.8}
+.sl-date{margin-top:.6rem;font-size:clamp(1.1rem,1.8vw,1.6rem);font-weight:700;color:var(--soft)}
+.sl-now{display:flex;gap:18px;align-items:center;text-align:left;margin:2.6rem auto 0;padding:16px 20px;max-width:520px;border-radius:20px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.sl-now[hidden],.sl-chal[hidden],.sl-cap[hidden],.sl-p[hidden]{display:none}
+.sl-cov{flex:none;width:76px;height:114px;border-radius:7px;background:var(--accent) center/cover;box-shadow:0 8px 22px rgba(0,0,0,.4);display:grid;place-items:center;overflow:hidden;font-size:.65rem;font-weight:800;padding:5px;text-align:center;color:#fff}
+.sl-t{min-width:0;flex:1}
+.sl-lbl{display:block;font-size:.72rem;font-weight:800;letter-spacing:.14em;color:var(--accent)}
+.sl-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:1.25rem;line-height:1.25;margin:4px 0 3px}
+.sl-by{display:block;font-size:.92rem;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl-bar{height:6px;border-radius:6px;background:color-mix(in srgb,var(--ink) 18%,transparent);margin-top:10px;overflow:hidden}
+.sl-bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:inherit}
+.sl-chal{margin-top:1.2rem;font-size:1.02rem;font-weight:700;color:var(--soft)}
+.sl-p,.sl-ascii,.sl-last{display:none}
+.sl-wake{position:absolute;left:0;right:0;bottom:34px;text-align:center;font-size:.9rem;color:var(--soft);opacity:0;transition:opacity 1.2s;z-index:3}
+.sl-wake.show{opacity:.8}
+.sl-cap{position:absolute;left:28px;bottom:24px;z-index:3;display:flex;flex-direction:column;gap:2px;max-width:46vw;text-shadow:0 1px 4px #000,0 0 14px #000}
+.sl-cap b{font-size:.95rem;font-weight:700;color:#e6ebff}
+.sl-cap small{font-size:.72rem;color:#a9b3e0}
+
+/* ---- Word Town at night: a moon, drifting clouds, the town's windows going dark one by one */
+#sleepScreen[data-t=wordtown]{--bg:#0d1b3d;--ink:#fff4d6;--soft:#b9c6e6;--accent:#ffc93c;--surface:#1b2d5e;background:linear-gradient(180deg,#081230 0%,#13285a 55%,#2a3f7e 100%)}
+#sleepScreen[data-t=wordtown] .sl-clock{font-family:"Fredoka","Nunito",sans-serif;font-weight:600;text-shadow:0 5px 0 rgba(0,0,0,.18),0 0 40px rgba(255,201,60,.18)}
+#sleepScreen[data-t=wordtown] .sl-now{border:3px solid rgba(255,255,255,.12);box-shadow:0 6px 0 rgba(0,0,0,.2)}
+.sl-moon{position:absolute;right:12%;top:10%;width:110px;height:110px;border-radius:50%;background:#fff1c4;box-shadow:0 0 70px 14px rgba(255,236,170,.25)}
+.sl-moon::before,.sl-moon::after{content:"";position:absolute;border-radius:50%;background:rgba(214,196,140,.55)}
+.sl-moon::before{width:24px;height:24px;left:26px;top:30px}.sl-moon::after{width:15px;height:15px;left:66px;top:62px}
+.sl-cloud{position:absolute;height:34px;border-radius:34px;background:rgba(190,205,240,.12);animation:sl-drift linear infinite}
+.sl-cloud::before,.sl-cloud::after{content:"";position:absolute;border-radius:50%;background:inherit}
+.sl-cloud::before{width:46px;height:46px;left:16%;top:-23px}.sl-cloud::after{width:32px;height:32px;left:52%;top:-15px}
+@keyframes sl-drift{from{transform:translateX(-260px)}to{transform:translateX(110vw)}}
+.sl-star{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;opacity:.5;animation:sl-tw 4s ease-in-out infinite}
+@keyframes sl-tw{0%,100%{opacity:.2}50%{opacity:.95}}
+.sl-town{position:absolute;left:0;right:0;bottom:0;height:26vh;display:flex;align-items:flex-end;gap:3px;padding:0 3px}
+.sl-house{position:relative;flex:1;background:#0a1430;border-radius:8px 8px 0 0}
+.sl-house::before{content:"";position:absolute;left:50%;top:-20px;width:0;height:0;transform:translateX(-50%);border:solid transparent;border-width:0 calc(var(--w,60px)/2) 21px;border-bottom-color:#0a1430}
+.sl-win{position:absolute;width:12px;height:15px;border-radius:2px;background:#ffc93c;box-shadow:0 0 10px rgba(255,201,60,.7);transition:opacity 3s}
+.sl-win.off{opacity:.06;box-shadow:none}
+.sl-zz{position:absolute;font:600 1.6rem "Fredoka",sans-serif;color:#cfd9ff;opacity:0;animation:sl-zz 7s ease-in infinite}
+@keyframes sl-zz{0%{opacity:0;transform:translate(0,0) scale(.6)}20%{opacity:.8}100%{opacity:0;transform:translate(50px,-140px) scale(1.3)}}
+
+/* ---- Gruvbox: a terminal that's gone to sleep */
+#sleepScreen[data-t=gruvbox]{--bg:#1d2021;--ink:#ebdbb2;--soft:#a89984;--accent:#fabd2f;--surface:#282828;font-family:"IBM Plex Mono",ui-monospace,monospace}
+#sleepScreen[data-t=gruvbox] .sl-card{text-align:left;background:#282828;border:1px solid #3c3836;border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:0 0 22px;overflow:hidden;width:min(80vw,700px)}
+#sleepScreen[data-t=gruvbox] .sl-card::before{content:"● ● ●   babel@library: ~";display:block;padding:10px 16px;background:#3c3836;color:#928374;font-size:.82rem;letter-spacing:.06em;word-spacing:-.2em;margin-bottom:14px}
+#sleepScreen[data-t=gruvbox] .sl-term{padding:0 24px}
+#sleepScreen[data-t=gruvbox] .sl-p{display:block;color:#b8bb26;font-size:.92rem;margin-top:12px}
+#sleepScreen[data-t=gruvbox] .sl-p[hidden]{display:none}
+#sleepScreen[data-t=gruvbox] .sl-p::before{content:"$ ";color:#fe8019}
+#sleepScreen[data-t=gruvbox] .sl-clock{font-weight:600;font-size:clamp(4rem,9vw,7.5rem);color:#fabd2f;letter-spacing:-.04em}
+#sleepScreen[data-t=gruvbox] .sl-date{color:#83a598;margin-top:2px;font-size:1.05rem}
+#sleepScreen[data-t=gruvbox] .sl-now{margin:8px 0 0;padding:0;background:none;border-radius:0;max-width:none}
+#sleepScreen[data-t=gruvbox] .sl-cov{width:56px;height:84px;border-radius:2px;filter:sepia(.35) saturate(.9)}
+#sleepScreen[data-t=gruvbox] .sl-lbl{color:#d3869b;letter-spacing:.04em}
+#sleepScreen[data-t=gruvbox] .sl-bar{display:none}
+#sleepScreen[data-t=gruvbox] .sl-ascii{display:block;color:#b8bb26;font-size:.92rem;margin-top:6px;white-space:pre}
+#sleepScreen[data-t=gruvbox] .sl-chal{color:#8ec07c;font-size:.92rem;margin-top:6px}
+#sleepScreen[data-t=gruvbox] .sl-cur{display:inline-block;width:.6em;height:1.05em;background:#fe8019;vertical-align:-2px;animation:sl-blink 1.1s steps(1) infinite}
+@keyframes sl-blink{50%{opacity:0}}
+.sl-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px)}
+
+/* ---- Galaxy: ESA's Hubble and Webb photos, one after another, drifting slowly; stars twinkling over them */
+#sleepScreen[data-t=galaxy]{--bg:#03040f;--ink:#e6ebff;--soft:#b8c1ec;--accent:#9b8cff;--surface:#0e1436}
+.sl-ph{position:absolute;inset:-6%;background:#03040f center/cover no-repeat;opacity:0;transition:opacity 3.5s ease-in-out}
+.sl-ph.on{opacity:1;animation:sl-kb 34s linear forwards}
+@keyframes sl-kb{from{transform:translate(var(--x0,0),var(--y0,0)) scale(1.02)}to{transform:translate(var(--x1,0),var(--y1,0)) scale(1.1)}}
+.sl-veil{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,rgba(3,4,15,.42),rgba(3,4,15,.2) 45%,rgba(3,4,15,.6) 100%)}
+.sl-stars{position:absolute;inset:0;width:100%;height:100%}
+#sleepScreen[data-t=galaxy] .sl-clock{font-weight:300;letter-spacing:.02em;text-shadow:0 0 30px rgba(155,140,255,.6),0 2px 12px rgba(0,0,0,.6),0 0 2px #fff}
+#sleepScreen[data-t=galaxy] .sl-date{text-shadow:0 1px 8px #000}
+#sleepScreen[data-t=galaxy] .sl-now{background:rgba(6,9,30,.5);border:1px solid rgba(150,170,255,.22);backdrop-filter:blur(10px)}
+#sleepScreen[data-t=galaxy] .sl-lbl{color:#ffd98a}
+#sleepScreen[data-t=galaxy] .sl-bar i{background:linear-gradient(90deg,#9b8cff,#8fb8ff)}
+#sleepScreen[data-t=galaxy] .sl-chal{text-shadow:0 1px 8px #000}
+@media (prefers-reduced-motion:reduce){.sl-ph.on{animation:none}.sl-cloud,.sl-zz{animation:none}}
+html.sleeping,html.sleeping body{overflow:hidden!important}html.sleeping ::-webkit-scrollbar{display:none}
+/* (a screen whose brightness Babel can't change: the page darkens itself instead) */
+#sleepScreen::after{content:"";position:absolute;inset:0;z-index:5;background:#000;opacity:0;transition:opacity 2s;pointer-events:none}
+#sleepScreen.soft::after{opacity:.55}

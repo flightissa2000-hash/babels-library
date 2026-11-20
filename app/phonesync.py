@@ -215,7 +215,9 @@ def pull(since):
     return {"now": now, "full": since <= 0, "items": out, "annotations": anns, "deleted": deleted,
             "collections": store.list_collections(), "log": [dict(r) for r in log], "journal": entries,
             "profiles": store.list_profiles(), "profile": pid,
-            "bulletin": (store.get_settings().get("bulletin") or {}).get(str(pid)) or {}, "bookmarks": _bookmarks()}
+            "bulletin": (store.get_settings().get("bulletin") or {}).get(str(pid)) or {},
+            "bulletin_period": (store.get_settings().get("bulletin_period") or {}).get(str(pid)) or "week", "bookmarks": _bookmarks(),
+            "site_limits": (store.get_settings().get("site_limits") or {}).get(str(pid))}
 
 
 def _bookmarks():
@@ -495,6 +497,10 @@ def _make_handler():
             path = parsed.path
             store.use_profile(None)
             try:
+                if path.startswith(("/opds", "/kosync/")):
+                    # e-readers (the EEGO A4): the catalogue and KOReader progress sync, with their own sign-in
+                    import ereader
+                    return ereader.handle(self, method, path)
                 if path == "/sync/hello":
                     return self._send(200, {"app": "babels-library", "name": pc_name(), "version": VERSION})
                 if path == "/sync/pair" and method == "POST":
@@ -536,9 +542,9 @@ def _make_handler():
                         store.need_pin(new, b.get("pin"))
                     _touch(dev, profile=new)
                     return self._send(200, {"current": new})
-                if path == "/sync/bulletin":
+                if path in ("/sync/bulletin", "/sync/bulletin/period", "/sync/sitelimits"):
                     for meth, rx, fn in server.ROUTES:
-                        if meth == method and rx.match("/api/bulletin"):
+                        if meth == method and rx.match(path.replace("/sync/", "/api/", 1)):
                             return fn(self)
                     return self._send(404, {"error": "not found"})
                 if path == "/sync/pull":
@@ -602,14 +608,14 @@ def _make_handler():
                     threading.Thread(target=save, daemon=True).start()
                     return self._send(200, {"ok": True})
                 # an item's full details on the phone: read them, edit them, and the same buttons as the computer's
-                m = re.match(r"^/sync/item/(\d+)(/annotations|/edit|/remove|/reanalyze|/pullcover|/hardcover|/poster|/fill|/expire|/tracks|/audiobook|/subs/[es]\d+\.vtt|/audio/\d+)?$", path)
+                m = re.match(r"^/sync/item/(\d+)(/annotations|/edit|/remove|/reanalyze|/reading-copy|/pullcover|/coverpick|/hardcover|/poster|/fill|/expire|/tracks|/audiobook|/subs/[es]\d+\.vtt|/audio/\d+)?$", path)
                 if m:
                     sub = m.group(2) or ""
                     # (Android can't send PATCH or a DELETE with a body: edits come as POST /edit, removal as POST /remove)
                     want = {("GET", ""): ("GET", ""), ("GET", "/annotations"): ("GET", "/annotations"), ("POST", "/edit"): ("PATCH", ""),
                             ("POST", "/remove"): ("DELETE", "")}.get((method, sub)) or (("POST", sub) if method == "POST" and sub not in ("", "/annotations") else None)
                     # the reader's subtitles, audiobook and its chapters (read only)
-                    if method == "GET" and re.match(r"^/(tracks|audiobook|subs/[es]\d+\.vtt|audio/\d+)$", sub):
+                    if method == "GET" and re.match(r"^/(tracks|audiobook|reading-copy|subs/[es]\d+\.vtt|audio/\d+)$", sub):
                         want = ("GET", sub)
                     if not want:
                         return self._send(405, {"error": "not allowed"})
@@ -693,6 +699,9 @@ def _make_handler():
                 self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, X-File-Size")
             super().end_headers()
+
+        def do_PUT(self):
+            self._dispatch("PUT")           # (KOReader sync saves a place with PUT)
 
         def do_OPTIONS(self):
             self.send_response(204)
