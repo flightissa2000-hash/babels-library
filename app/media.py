@@ -4,6 +4,8 @@ import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py"))
+if os.name != "nt":
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py", "linux"))
 
 import taxonomy as T  # noqa: E402
 

@@ -14,6 +14,8 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py"))
+if os.name != "nt":
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py", "linux"))
 from cryptography.hazmat.primitives import hashes, serialization                      # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ec                             # noqa: E402
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature     # noqa: E402

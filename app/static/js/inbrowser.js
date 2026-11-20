@@ -6,7 +6,16 @@
 const Browser = (() => {
   const B = { on: false, hidden: false, offer: null, split: false, act: "main",
     mode: { main: "start", side: "start" }, st: { main: {}, side: {} } };
-  const send = (d) => fetch("/api/browser/view", { method: "POST", headers: { "X-Babel": "1", "Content-Type": "application/json" }, body: JSON.stringify(d) }).catch(() => {});
+  // (on Linux and macOS there's no website view inside the window: a page opens in your own web browser, and the
+  //  start page stays here)
+  const send = (d) => fetch("/api/browser/view", { method: "POST", headers: { "X-Babel": "1", "Content-Type": "application/json" }, body: JSON.stringify(d) })
+    .then((r) => r.json()).then((r) => {
+      if (r && r.external && d.cmd === "go") {
+        if (r.ok && typeof toast === "function") toast("Opened in your web browser");
+        B.mode[d.pane || "main"] = "start"; home("start", d.pane || "main");
+      }
+      return r;
+    }).catch(() => {});
   const hole = (p) => $(p === "side" ? "#ibHole2" : "#ibHole");
   const frame = (p) => $(p === "side" ? "#ibStart2" : "#ibStart");
 

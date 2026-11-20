@@ -9,6 +9,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py"))
+if os.name != "nt":
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py", "linux"))
 from pypdf import PdfReader  # noqa: E402
 
 DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s\"<>]+)", re.I)

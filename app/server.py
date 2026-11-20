@@ -7,6 +7,9 @@ import html
 import json
 import mimetypes
 import os
+# (this computer's own bits live in %LOCALAPPDATA% on Windows; elsewhere in ~/.local/share: every module reads LOCALAPPDATA)
+if os.name != "nt" and not os.environ.get("LOCALAPPDATA"):
+    os.environ["LOCALAPPDATA"] = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
 import re
 import shutil
 import sqlite3
@@ -1241,7 +1244,7 @@ def _convert_apart(src, out, title, author, state):
     would stop the whole app (the window, phones) until it's done."""
     import subprocess
     here = os.path.dirname(os.path.abspath(__file__))
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join([here, os.path.join(here, "vendor_py")]), PYTHONIOENCODING="utf-8")
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(([os.path.join(here, "vendor_py", "linux")] if os.name != "nt" else []) + [here, os.path.join(here, "vendor_py")]), PYTHONIOENCODING="utf-8")
     errf = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
     proc = subprocess.Popen([sys.executable, "-c", _CONVERT, json.dumps([src, out, title, author])], cwd=here, env=env,
                             stdout=subprocess.PIPE, stderr=errf, text=True, encoding="utf-8", errors="replace",
@@ -3042,9 +3045,23 @@ def r_br_go(h):
 def r_br_view(h):
     """The library page's browser bar: place/hide the website view, go somewhere, back, forward, fill a password..."""
     _browser_guard(h)
+    d = h.json_body()
+    if os.name != "nt":
+        # (the website view inside the window is Windows' WebView2: elsewhere a page opens in your own web browser)
+        if d.get("cmd") == "go":
+            import browser
+            url = browser.to_url(d.get("text", ""), wiki=bool(d.get("wiki")))
+            if url:
+                try:
+                    browser.visit(url)
+                except Exception:
+                    pass
+                webbrowser.open(url)
+                return h._send(200, {"ok": True, "external": True})
+        return h._send(200, {"ok": False, "external": True})
     if DESKTOP is None or not hasattr(DESKTOP, "browser_view"):
         return h._send(200, {"ok": False})
-    DESKTOP.browser_view(h.json_body())
+    DESKTOP.browser_view(d)
     h._send(200, {"ok": True})
 
 
@@ -3077,7 +3094,23 @@ def r_desk_fs(h):
 # including over a website in the in-app browser), whether a website there is playing sound, and Galaxy's photos
 def _idle_seconds():
     if os.name != "nt":
-        return 0
+        import shutil
+        import subprocess
+        try:
+            if shutil.which("gdbus"):
+                r = subprocess.run(["gdbus", "call", "--session", "--dest", "org.gnome.Mutter.IdleMonitor", "--object-path",
+                                    "/org/gnome/Mutter/IdleMonitor/Core", "--method", "org.gnome.Mutter.IdleMonitor.GetIdletime"],
+                                   capture_output=True, text=True, timeout=3)
+                m = re.search(r"(\d+)", r.stdout) if r.returncode == 0 else None
+                if m:
+                    return int(m.group(1)) / 1000.0
+            if shutil.which("xprintidle"):
+                r = subprocess.run(["xprintidle"], capture_output=True, text=True, timeout=3)
+                if r.returncode == 0 and r.stdout.strip().isdigit():
+                    return int(r.stdout.strip()) / 1000.0
+        except Exception:
+            pass
+        return None
     import ctypes
 
     class LASTINPUTINFO(ctypes.Structure):
@@ -3099,7 +3132,8 @@ def r_desk_idle(h):
         except Exception as e:
             print("[inkwell] idle: couldn't ask the browser if it's playing:", e)
             playing = False
-    h._send(200, {"idle": round(_idle_seconds(), 1), "playing": playing, "fullscreen": bool(getattr(DESKTOP, "_fs", False))})
+    idle = _idle_seconds()
+    h._send(200, {"idle": None if idle is None else round(idle, 1), "playing": playing, "fullscreen": bool(getattr(DESKTOP, "_fs", False))})
 
 
 @route("POST", r"/api/sleep/dim")

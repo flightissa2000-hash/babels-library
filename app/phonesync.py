@@ -24,6 +24,7 @@ import secrets
 import shutil
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -775,16 +776,38 @@ def lan_addresses():
 CLOUDFLARED_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
 
 
+def _cloudflared_url():
+    if os.name == "nt":
+        return CLOUDFLARED_URL, "cloudflared.exe"
+    import platform
+    m = platform.machine().lower()
+    arch = "arm64" if m in ("aarch64", "arm64") else "arm" if m.startswith("arm") else "386" if m in ("i386", "i686") else "amd64"
+    if sys.platform == "darwin":
+        return f"https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-{arch}.tgz", "cloudflared"
+    return f"https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-{arch}", "cloudflared"
+
+
 def _cloudflared():
-    exe = shutil.which("cloudflared") or os.path.join(BIN, "cloudflared.exe")
+    url, name = _cloudflared_url()
+    exe = shutil.which("cloudflared") or os.path.join(BIN, name)
     if os.path.exists(exe):
         return exe
     os.makedirs(BIN, exist_ok=True)
     print("[inkwell] Downloading Cloudflare's tunnel program (cloudflared) from github.com/cloudflare …")
     tmp = exe + ".part"
-    with urllib.request.urlopen(urllib.request.Request(CLOUDFLARED_URL, headers={"User-Agent": "BabelsLibrary"}), timeout=120) as r, open(tmp, "wb") as f:
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "BabelsLibrary"}), timeout=120) as r, open(tmp, "wb") as f:
         shutil.copyfileobj(r, f)
+    if url.endswith(".tgz"):
+        import tarfile
+        with tarfile.open(tmp) as t:
+            member = next(m for m in t.getmembers() if m.name.endswith("cloudflared"))
+            with t.extractfile(member) as src, open(tmp + "2", "wb") as out:
+                shutil.copyfileobj(src, out)
+        os.remove(tmp)
+        tmp = tmp + "2"
     os.replace(tmp, exe)
+    if os.name != "nt":
+        os.chmod(exe, 0o755)
     return exe
 
 

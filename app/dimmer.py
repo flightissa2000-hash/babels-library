@@ -3,20 +3,82 @@
 Laptop screens: Windows' own brightness (WMI). Monitors on a cable: the monitor's own brightness setting, over
 DDC/CI (dxva2), the same thing the buttons on the monitor change. What the brightness was before is written to
 %LOCALAPPDATA%\\BabelsLibrary\\dimmed.json first, so if the app closes or crashes while dimmed, the next start puts
-it back (restore_leftover). Monitors that don't answer are simply left alone (the page dims itself as well)."""
+it back (restore_leftover). Monitors that don't answer are simply left alone (the page dims itself as well).
+
+Linux: monitors over DDC/CI with ddcutil (sudo apt install ddcutil; your user in the i2c group), laptop screens with
+brightnessctl. Without either, the page darkens itself."""
 import ctypes
 import json
 import os
+import re
+import shutil
 import subprocess
 import threading
-from ctypes import wintypes
+if os.name == "nt":
+    from ctypes import wintypes
+else:
+    wintypes = None
 
 STATE = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "BabelsLibrary", "dimmed.json")
 _lock = threading.Lock()
 
 
-class _PHYS(ctypes.Structure):
-    _fields_ = [("hPhysicalMonitor", wintypes.HANDLE), ("szPhysicalMonitorDescription", wintypes.WCHAR * 128)]
+if os.name == "nt":
+    class _PHYS(ctypes.Structure):
+        _fields_ = [("hPhysicalMonitor", wintypes.HANDLE), ("szPhysicalMonitorDescription", wintypes.WCHAR * 128)]
+
+
+# ---- Linux: ddcutil (monitors on a cable) and brightnessctl (laptop screens)
+def _run(args, timeout=20):
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, r.stdout
+    except Exception:
+        return 1, ""
+
+
+def _lx_displays():
+    """ddcutil's display numbers that answer DDC/CI"""
+    if not shutil.which("ddcutil"):
+        return []
+    code, out = _run(["ddcutil", "detect", "--brief"], 40)
+    return re.findall(r"^Display (\d+)", out, re.M) if code == 0 else []
+
+
+def _lx_get(n):
+    code, out = _run(["ddcutil", "--display", n, "getvcp", "10", "--brief"])
+    m = re.search(r"VCP 10 C (\d+) (\d+)", out) if code == 0 else None
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _lx_dim(level):
+    before = {"lx_ddc": [], "lx_bl": None}
+    for n in _lx_displays():
+        b = _lx_get(n)
+        if b:
+            before["lx_ddc"].append({"n": n, "v": b[0]})
+    if shutil.which("brightnessctl"):
+        code, out = _run(["brightnessctl", "-m"])          # name,class,current,percent,max
+        parts = out.strip().split(",") if code == 0 else []
+        if len(parts) >= 5 and parts[2].isdigit():
+            before["lx_bl"] = int(parts[2])
+    if not before["lx_ddc"] and before["lx_bl"] is None:
+        return {"ok": False}
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w", encoding="utf-8") as f:
+        json.dump(before, f)
+    for m in before["lx_ddc"]:
+        _run(["ddcutil", "--display", m["n"], "setvcp", "10", str(max(0, int(round(m["v"] * level))))])
+    if before["lx_bl"] is not None:
+        _run(["brightnessctl", "-q", "set", str(max(1, int(before["lx_bl"] * level)))])
+    return {"ok": True, "before": before}
+
+
+def _lx_restore(before):
+    for m in before.get("lx_ddc", []):
+        _run(["ddcutil", "--display", m["n"], "setvcp", "10", str(int(m["v"]))])
+    if before.get("lx_bl") is not None:
+        _run(["brightnessctl", "-q", "set", str(int(before["lx_bl"]))])
 
 
 def _monitors():
@@ -75,6 +137,8 @@ def dim(level=0.2):
     with _lock:
         if os.path.isfile(STATE):
             return {"ok": True, "already": True}
+        if os.name != "nt":
+            return _lx_dim(level)
         before = {"ddc": [], "wmi": None}
         mons = _monitors()
         try:
@@ -111,6 +175,13 @@ def restore():
                 before = json.load(f)
         except Exception:
             return {"ok": True, "nothing": True}
+        if os.name != "nt":
+            _lx_restore(before)
+            try:
+                os.remove(STATE)
+            except OSError:
+                pass
+            return {"ok": True, "restored": before}
         mons = _monitors()
         try:
             for m in before.get("ddc", []):

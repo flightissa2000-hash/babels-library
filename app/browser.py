@@ -23,11 +23,28 @@ _db = None
 SEARCH = {"duckduckgo": ("DuckDuckGo", "https://duckduckgo.com/?q={q}"), "wikipedia": ("Wikipedia", "https://en.wikipedia.org/w/index.php?search={q}")}
 
 
+def _carry_over():
+    """A new computer (Linux after Windows, say): start from the history and bookmarks left on the library's drive
+    (library_data/carry-over/browser.db: no passwords in it), once, when this computer has none of its own."""
+    if os.path.exists(DB):
+        return
+    try:
+        import shutil
+        import store
+        src = os.path.join(store.DATA_DIR, "carry-over", "browser.db")
+        if os.path.isfile(src):
+            shutil.copyfile(src, DB)
+            print("[babel] browser history and bookmarks carried over from the drive")
+    except Exception as e:
+        print("[babel] couldn't carry the browser history over:", e)
+
+
 def db():
     global _db
     with _lock:
         if _db is None:
             os.makedirs(DIR, exist_ok=True)
+            _carry_over()
             _db = sqlite3.connect(DB, check_same_thread=False, timeout=30)
             _db.row_factory = sqlite3.Row
             _db.executescript("""

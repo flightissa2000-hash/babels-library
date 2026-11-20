@@ -17,6 +17,8 @@ import sys
 from collections import Counter
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py"))
+if os.name != "nt":
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor_py", "linux"))
 import pymupdf  # noqa: E402
 
 pymupdf.TOOLS.mupdf_display_errors(False)

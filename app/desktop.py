@@ -15,6 +15,9 @@ import time
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# (this computer's own bits live in %LOCALAPPDATA% on Windows; elsewhere in ~/.local/share: every module reads LOCALAPPDATA)
+if os.name != "nt" and not os.environ.get("LOCALAPPDATA"):
+    os.environ["LOCALAPPDATA"] = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
 sys.path.insert(0, HERE)
 PORT = int(os.environ.get("INKWELL_PORT", "8765"))
 BASE = f"http://localhost:{PORT}"

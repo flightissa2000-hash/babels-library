@@ -170,7 +170,7 @@ const Sleep = window.Sleep = (() => {
         .catch(() => { if (on) el.classList.add("soft"); });
     }, 1500);
     // something else woke the computer up (a key in another window, say): back to the library
-    timers.push(setInterval(async () => { try { const d = await api.get("/api/desktop/idle"); if (d.idle < 1.5 && Date.now() - shownAt > 3000) hide(); } catch (e) {} }, 2000));
+    timers.push(setInterval(async () => { try { const d = await api.get("/api/desktop/idle"); if (d.idle != null && d.idle < 1.5 && Date.now() - shownAt > 3000) hide(); } catch (e) {} }, 2000));
   }
   function hide() {
     if (!on) return;
@@ -192,9 +192,12 @@ const Sleep = window.Sleep = (() => {
     try { d = await api.get("/api/desktop/idle"); } catch (e) { return; }
     if (!isFull(d.fullscreen) || d.playing || videoPlaying()) return;
     const need = cfg.after * 60 * (readerOpen() ? 3 : 1);
-    if (d.idle >= need) show();
+    const idle = d.idle == null ? (Date.now() - lastInput) / 1000 : d.idle;      // (no idle time from the system: this window's own)
+    if (idle >= need) show();
   }
   setInterval(check, 15000);
+  let lastInput = Date.now();
+  for (const ev of ["pointermove", "pointerdown", "keydown", "wheel"]) addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true });
   // back to full brightness: on waking, and whenever the page (re)loads, in case it closed while the screen was dimmed
   function undim() { fetch("/api/sleep/undim", { method: "POST", keepalive: true }).catch(() => {}); }
   undim();
